@@ -1,6 +1,6 @@
 [project]
 name = "lineage"
-version = "0.1.0"
+version = "0.1.1"
 description = "Genealogy research tools for GEDCOM trees"
 license = "MIT"
 readme = "README.md"
