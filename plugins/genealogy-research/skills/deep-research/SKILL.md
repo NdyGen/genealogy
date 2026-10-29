@@ -59,6 +59,15 @@ You are the research lead. Most of the work in a research is searching and readi
 
 Working in parallel is fine as long as the packages are independent (the fact check and the background, say). While helpers work you can carry on yourself; if you only wait for them, end your turn: you are woken when a helper finishes.
 
+## Starting a round
+
+Check where you are: `git rev-parse --abbrev-ref HEAD`.
+- **On `dr/<ID>`:** you are the lead of that round; go on with "Method".
+- **Anywhere else (the main checkout):** the user asked for a new round. Put the person in the queue if needed (`lineage queue add <ID> --reason "<why>"`), then `lineage round start <ID>` (`--follow-up` for a person who was researched before, `--brief <path>` for a focused assignment that is committed in main). What happens next depends on `lineage config runner`:
+  - `herdr` or `headless`: the round runs in its own tab or in the background. Tell the user where (the script prints it) and stop; you are not the lead.
+  - `inline`: you are the lead, in this session. Move into the worktree the script printed (`cd <worktree>`) and do all work there: every command runs in it, every file path is below it. Then follow "Method".
+- **After `lineage round finish` (inline):** offer the user the review and the merge. `lineage review <ID>` shows the mechanical findings; go through the report with the user, then, with their approval, merge from the main checkout: `cd <main checkout> && lineage round merge <ID>`.
+
 ## Method
 
 You work in your own git worktree and branch. Your ID block is in the queue: `lineage queue show` lists "ids 800001-800999" next to your person. Use those numbers for new `I`, `F` and `S` records. Scans and helper files go in `<output>/scans/` inside your worktree, including the crops and reductions you read. Never put them in the agent's scratchpad or a temp folder: `lineage round merge` keeps only `<output>/scans/` (under the project's scans folder, as `dr-<ID>`), and the coordinator must be able to reread your finds. In one research the crops were lost this way.
