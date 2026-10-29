@@ -10,6 +10,10 @@ while [ -L "$self" ]; do
   case "$link" in /*) self=$link;; *) self="$(dirname "$self")/$link";; esac
 done
 ROOT=$(cd "$(dirname "$self")/.." && pwd)
+# The venv's own `lineage` comes first on PATH under `uv run` and knows no `round`: subprocesses (the guard,
+# the round scripts) must reach this wrapper.
+export LINEAGE_BIN="$ROOT/bin/lineage"
+case ":$PATH:" in *":$ROOT/bin:"*) ;; *) PATH="$ROOT/bin:$PATH";; esac
 if [ "${1:-}" = round ]; then
   command=${2:?usage: lineage round <start|helper|finish|merge|undo|watch|start-guard|start-coordinator> ...}
   script="$ROOT/scripts/round/$command.sh"
