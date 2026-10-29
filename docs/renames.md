@@ -1,6 +1,6 @@
 # Renames (Dutch to English)
 
-Public names that changed, per batch. Skills, scripts and the ndygen/Sweron migration use this list.
+Public names that changed, per batch. Skills, scripts and the migration of existing projects use this list.
 
 ## Batch A: core modules
 
