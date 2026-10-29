@@ -206,6 +206,10 @@ def stem_rank(tree: Tree, stems: tuple[tuple[str, ...], ...] | None = None) -> d
     return rank
 
 
+# Priority 0: picked by the user, before the paternal lines and also in a side branch.
+USER_PICK = 0
+
+
 def next_open(
     items: dict[str, Item],
     tree: Tree | None = None,
@@ -221,11 +225,11 @@ def next_open(
         i
         for i in items.values()
         if i.status == "open"
-        and (line is None or i.id in line or i.id in rank)
+        and (line is None or i.id in line or i.id in rank or i.priority == USER_PICK)
         and (tree is None or not conflicts(items, tree, i.id))
     ]
     return (
-        min(candidates, key=lambda i: (rank.get(i.id, len(stems)), i.sort_key))
+        min(candidates, key=lambda i: (i.priority != USER_PICK, rank.get(i.id, len(stems)), i.sort_key))
         if candidates
         else None
     )

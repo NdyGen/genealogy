@@ -28,7 +28,7 @@ Queue file: `lineage config path queue`, edited with `lineage queue ...`:
 | `skip <ID> --reason ...` | do not research |
 | `normalize` | after a merge: merge duplicate lines (the most advanced status wins) |
 
-**Direct line first:** `queue next` and `queue show` limit themselves to ancestors of the start of the direct line (`project.md`) and running work. Open items in side branches stay but are not started; `--side-branches` shows or picks them anyway. **Stem items always come first:** the men of a stem and all their wives, including a first or second wife the line does not descend from, are never a side branch.
+**Direct line first:** `queue next` and `queue show` limit themselves to ancestors of the start of the direct line (`project.md`) and running work. Open items in side branches stay but are not started; `--side-branches` shows or picks them anyway. **Stem items always come first:** the men of a stem and all their wives, including a first or second wife the line does not descend from, are never a side branch. **The user's picks come before all of that:** an item with priority 0 (`queue add <ID> --priority 0`, only on the user's request) is started first, also in a side branch.
 
 **Order of the stems:** which stems exist, in which order and from which person, is in `project.md`. `queue next` picks first by stem (the father-to-father line with the wives of those men; built-in default `STEMS` in `queue.py`, or `stems.tsv` next to the queue with `name<TAB>ID[<TAB>men-first]` per line), and within a stem by round and priority. A follow-up round is not an open item in the queue: if the oldest man of a higher stem has a worthwhile follow-up round, start that before the open item `queue next` names.
 

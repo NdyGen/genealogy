@@ -238,6 +238,8 @@ def test_next_open_puts_the_paternal_lines_first(tmp_path):
     project(tmp_path, stems=(settings.Stem("D", "I1"), settings.Stem("E", "I3")))
     assert queue.next_open(items, tree).id == "I5"
     assert queue.next_open(items).id == "I6"
+    items["I7"] = queue.Item("I7", "open", priority=queue.USER_PICK, round=6)
+    assert queue.next_open(items, tree, line={"I1"}).id == "I7"
 
 
 def test_stem_rank_men_first():

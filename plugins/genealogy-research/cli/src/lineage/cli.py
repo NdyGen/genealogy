@@ -410,7 +410,9 @@ def cmd_queue_show(tree: Tree, args: argparse.Namespace) -> int:
     items = queue.load(args.queue)
     in_line = queue.direct_line(tree) | set(queue.stem_rank(tree))
     shown = [i for i in items.values() if args.all or i.status in ("open", "in_progress")]
-    side_branches = [i for i in shown if i.status == "open" and i.id not in in_line]
+    side_branches = [
+        i for i in shown if i.status == "open" and i.id not in in_line and i.priority != queue.USER_PICK
+    ]
     if not (args.all or args.side_branches):
         shown = [i for i in shown if i not in side_branches]
     for item in sorted(shown, key=lambda i: i.sort_key):
@@ -1326,7 +1328,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--via", default="", help="ID of the person whose research produced this"
     )
     queue_add.add_argument("--reason", default="")
-    queue_add.add_argument("--priority", type=int, default=5, help="1 = first")
+    queue_add.add_argument("--priority", type=int, default=5, help="1 = first; 0 = picked by the user, before the paternal lines and also in a side branch")
     queue_add.add_argument("--round", type=int, default=1)
     queue_add.set_defaults(run=cmd_queue_add)
     queue_next = queue_commands.add_parser(
