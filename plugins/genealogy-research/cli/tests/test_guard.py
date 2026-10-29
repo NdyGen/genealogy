@@ -133,6 +133,20 @@ def test_both_accounts_full_waits_then_resumes_after_reset(tmp_path):
     assert w.resumed == [("I1", "work")]
 
 
+def test_a_waiting_round_resumed_by_someone_else_is_left_alone(tmp_path):
+    w = World(tmp_path)
+    w.research("I1")
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / "dr-limit-personal").write_text(str(ts(2026, 10, 8, 14, 0)))
+    w.agents["dr-i1"] = "idle"
+    w.screens["dr-i1"] = "You've hit your session limit · resets 3pm"
+    run_round(w, tmp_path, ts(2026, 10, 3, 11, 0))
+    w.agents["dr-i1"] = "working"
+    w.screens.pop("dr-i1")
+    run_round(w, tmp_path, ts(2026, 10, 3, 15, 1))
+    assert w.resumed == []
+
+
 def test_limit_on_a_helper_moves_the_round(tmp_path):
     w = World(tmp_path)
     w.research("I1", account="personal")

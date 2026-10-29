@@ -256,6 +256,9 @@ class Guard:
             mine.pop("gone", None)
             return f"{status} waiting for a free slot (max {self.max_rounds()})"
 
+        if mine.get("wait_until") and leader == "working":
+            # Resumed by someone else (the coordinator, by hand) while it waited for the limit.
+            mine.pop("wait_until")
         if mine.get("wait_until"):
             choice = self._choose(account, now)
             if choice and self._resume(id_, choice, out, "limit over"):
