@@ -34,17 +34,46 @@ To add more of what you know later, just tell Claude ("add my great-grandmother:
 
 ## Keep the research running
 
-How rounds run is set by `runner` in `lineage.toml`:
+### Choosing the runner
 
-- **`inline` (the default without Herdr):** one round at a time, in the session where you ask for it; helper agents run as subagents. When the round is finished Claude shows the review and, with your approval, merges it (`lineage round merge <ID>`). Ask for the next person when you are ready. Nothing runs in the background.
-- **`herdr`:** rounds run in parallel, each in its own Herdr tab with its helpers in panes next to it. This needs two more things running, both started from the main checkout of the project inside Herdr:
-  - **The coordinator**, a Claude session that starts rounds, watches them, reviews and merges finished ones, and fills free places from the queue. Start a Claude session in the project and run `/genealogy-research:coordinate`. It starts its own watcher (`lineage round watch` in the background) and restarts it after every notice.
-  - **The guard** (`lineage round start-guard`), a plain loop without Claude in its own tab. It resumes rounds that stopped at a usage limit, on another account when one has room (accounts are listed under `[accounts]` in `lineage.toml`), or waits until a limit resets. It also keeps a coordinator alive: when no coordinator session has been active for half an hour, it starts one itself (`lineage round start-coordinator <account>`). It merges nothing and starts no new research. Log: `.git/dr-guard.log`; `lineage guard --once --dry-run` shows what it would do now.
+The runner decides where research rounds run. It is `runner` in `lineage.toml`, chosen during setup:
 
-  How many rounds run at once and on which accounts is in two files in the git directory: `.git/dr-max-rounds` (a number) and `.git/dr-accounts` (account names). Empty or absent means no limit and all accounts.
-- **`headless`:** parallel rounds as background `claude -p` processes, without Herdr. The coordinator works the same way; permission prompts cannot be answered in the background, so rounds run in auto mode.
+| runner | rounds | what you start |
+|---|---|---|
+| `inline` | one at a time, in your own Claude session | nothing extra |
+| `herdr` | several in parallel, each in its own Herdr tab | Herdr, a coordinator session and the guard |
+| `headless` | several in parallel, as background `claude -p` processes | a coordinator session |
+| `auto` (default) | `herdr` when Claude runs inside Herdr, otherwise `inline` | |
 
-Every round works in its own git worktree and branch (`.worktrees/dr-<ID>`, `dr/<ID>`), so nothing reaches your tree before it has been reviewed and merged. `lineage round undo <ID>` withdraws a round that has not done anything yet.
+Change it with `lineage init --update --runner herdr` (or edit `lineage.toml`). `lineage config runner` shows which runner is used right now; `DR_RUNNER=inline lineage round start <ID>` overrides it for one command.
+
+### inline
+
+1. Open Claude Code in the project folder (`claude`).
+2. Ask for "deep research on I4". Claude starts the round (`lineage round start I4`), moves into its worktree and does the research in the same session, with helper agents as subagents.
+3. At the end Claude shows the review; after your approval it merges the round (`lineage round merge I4`). Ask for the next person when you are ready.
+
+Nothing runs in the background, so nothing needs to be stopped.
+
+### herdr
+
+1. **Start Herdr** in a terminal: `herdr` (it starts or reattaches the persistent session).
+2. **Open the project in a Herdr pane** and start Claude there: `cd <project> && claude`. Inside Herdr the `auto` runner becomes `herdr`.
+3. **Start the coordinator** in that session: `/genealogy-research:coordinate`. The coordinator starts rounds from the queue, watches them (it runs `lineage round watch` in the background and restarts it after every notice), reviews finished rounds, merges them and fills the free places.
+4. **Start the guard:** `lineage round start-guard` (from any pane in the project, or ask the coordinator). It opens its own tab "guard": a plain loop without Claude that resumes rounds stopped at a usage limit, on another account when one has room (accounts under `[accounts]` in `lineage.toml`), or after the limit resets. When no coordinator has been active for half an hour it starts one itself (`lineage round start-coordinator <account>`). It merges nothing and starts no new research. Log: `.git/dr-guard.log`; `lineage guard --once --dry-run` shows what it would do now. Starting it twice is harmless.
+5. **Set the limits** if you want them, in the git directory of the project: `echo 2 > .git/dr-max-rounds` (rounds at the same time) and `echo "personal" > .git/dr-accounts` (accounts that may be used). Empty or absent means no limit and all accounts.
+
+Each round gets a tab named after the person, with its helpers in panes next to it. To stop: end the coordinator session, and stop the guard with ctrl+c in its tab. Running rounds keep going until they finish; `lineage round undo <ID>` withdraws a round that has not done anything yet.
+
+### headless
+
+1. Set `runner = "headless"` in `lineage.toml`.
+2. Start rounds with `lineage round start <ID>`, or ask Claude for "deep research on I4". Each round runs as a background `claude -p` process in its worktree; its process ID and log are in `.worktrees/dr-<ID>/output/leader.pid` and `leader.log` (`tail -f` to follow it).
+3. For several rounds, open a Claude session in the project and run `/genealogy-research:coordinate`: it watches, reviews, merges and starts the next ones. The guard is not available without Herdr, so a round that hits a usage limit is resumed by the coordinator or by hand (`lineage round start <ID> --resume`).
+
+Background rounds cannot answer permission prompts, so they run in auto mode. `lineage round undo <ID>` stops a round that has not done anything yet.
+
+Every round, with any runner, works in its own git worktree and branch (`.worktrees/dr-<ID>`, `dr/<ID>`), so nothing reaches your tree before it has been reviewed and merged.
 
 ## What is in the plugin
 
