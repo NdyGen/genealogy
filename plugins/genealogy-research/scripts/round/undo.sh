@@ -27,4 +27,4 @@ git worktree remove --force "$WT"
 git branch -D "$BRANCH" >/dev/null
 # A revert restores exactly the state before the start: open for a first round, done with the old ID block for a follow-up.
 git revert --no-edit "$start" >/dev/null || { git revert --abort; echo "reverting $start conflicts; restore the queue by hand" >&2; exit 1; }
-echo "$ID undone: $(grep -P "^$ID\t" "$QUEUE" | cut -f2)"
+echo "$ID undone: $(awk -F'\t' -v id="$ID" '$1 == id {print $2}' "$QUEUE")"

@@ -34,7 +34,7 @@ if [ "$UPDATE_ROUND" = 0 ]; then
 fi
 
 mkdir -p "$(out_dir "$WT")"
-date -Iseconds > "$(out_dir "$WT")/DONE"
+now_iso > "$(out_dir "$WT")/DONE"
 
 runner_after_finish "$WT" "dr-$IDL"
 echo "$ID finished"

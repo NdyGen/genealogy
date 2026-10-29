@@ -89,13 +89,12 @@ for p in json.load(sys.stdin)['result']['panes']:
 
   # The lock keeps parallel starts honest.
   lock="$COMMON/dr-helper.lock"
-  exec 9>"$lock"
   while :; do
-    flock 9
+    lock_take "$lock"
     total=$(herdr agent list | python3 -c "import json,sys;print(len(json.load(sys.stdin)['result']['agents']))")
     own=$(_helper_panes_here | wc -l)
     [ "$total" -lt "$max_total" ] && [ "$own" -lt "$max_per" ] && break
-    flock -u 9
+    lock_release "$lock"
     sleep 30
   done
 
@@ -122,7 +121,7 @@ for p in json.load(sys.stdin)['result']['panes']:
   herdr agent start "$name" --kind claude --pane "$HELPER_PANE" --timeout 60000 -- --agent "$agent" --permission-mode auto >/dev/null 2>&1 || true
   _accept_trust "$name"
   herdr agent wait "$name" --until idle --timeout 60000 >/dev/null 2>&1 || true
-  flock -u 9
+  lock_release "$lock"
 
   started=no
   for attempt in 1 2 3; do
@@ -203,7 +202,7 @@ runner_after_finish() {
   tab=$(_tab_of "$wt")
   if [ -n "$tab" ]; then
     # Detached and delayed, so the leader can still print its closing line before its own pane goes.
-    setsid nohup sh -c "sleep 30; herdr tab close '$tab'" >/dev/null 2>&1 < /dev/null &
+    detach nohup sh -c "sleep 30; herdr tab close '$tab'" >/dev/null 2>&1 < /dev/null &
     echo "tab $tab closes in 30 seconds"
   fi
   return 0

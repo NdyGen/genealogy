@@ -12,7 +12,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/runner.sh"
 
 USAGE="usage: lineage round helper <role> <brief-file>"
 ROLE=${1:?$USAGE}
-BRIEF=$(realpath "${2:?$USAGE}")
+BRIEF=$(abs_path "${2:?$USAGE}")
 case "$BRIEF" in
   *.brief.md) RESULT="${BRIEF%.brief.md}.md";;
   *.opdracht.md) RESULT="${BRIEF%.opdracht.md}.md";;

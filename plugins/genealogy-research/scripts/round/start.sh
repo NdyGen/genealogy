@@ -109,7 +109,7 @@ mkdir -p "$OUTDIR"
 echo "$ACCOUNT" > "$OUTDIR/account"
 echo "$MODEL" > "$OUTDIR/model"
 [ -z "$BRIEF" ] || echo "$BRIEF" > "$OUTDIR/brief"
-[ "$UPDATE" = 1 ] && date -Iseconds > "$OUTDIR/update"
+[ "$UPDATE" = 1 ] && now_iso > "$OUTDIR/update"
 
 CONTEXT="You work in this git worktree on branch $BRANCH. Read the project's $RESEARCH/project.md first (and CLAUDE.md if the project has one). Run 'lineage config value language' and write everything you produce (reports, life story, log, questions) in that language."
 if [ "$UPDATE" = 1 ] || [ -f "$OUTDIR/update" ]; then

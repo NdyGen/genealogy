@@ -3,7 +3,13 @@
 # The venv lives in the plugin data dir, because the plugin root is replaced on every update; uv syncs it on
 # first use and whenever uv.lock changes.
 set -euo pipefail
-ROOT=$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)
+# Follows the symlinks (a link in ~/.local/bin, the plugin cache) without readlink -f, which older macOS lacks.
+self=$0
+while [ -L "$self" ]; do
+  link=$(readlink "$self")
+  case "$link" in /*) self=$link;; *) self="$(dirname "$self")/$link";; esac
+done
+ROOT=$(cd "$(dirname "$self")/.." && pwd)
 if [ "${1:-}" = round ]; then
   command=${2:?usage: lineage round <start|helper|finish|merge|undo|watch|start-guard|start-coordinator> ...}
   script="$ROOT/scripts/round/$command.sh"

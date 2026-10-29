@@ -15,6 +15,47 @@ command -v lineage >/dev/null 2>&1 || lineage() { "$PLUGIN_ROOT/bin/lineage" "$@
 
 die() { echo "$*" >&2; exit "${DIE_CODE:-1}"; }
 
+# --- portability: macOS has BSD tools and bash 3.2; these cover the GNU-only bits ------------------------
+
+clock_time() { date -d "@$1" +%H:%M 2>/dev/null || date -r "$1" +%H:%M; }
+now_iso() { date +%Y-%m-%dT%H:%M:%S%z; }
+abs_path() { python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"; }
+
+# Runs a command in its own session (process group), so it outlives the caller and can be stopped as a group.
+detach() {
+  if command -v setsid >/dev/null; then setsid "$@"; else
+    python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' "$@"
+  fi
+}
+
+# with_timeout <seconds> <command...>: exit 124 when the time is up, like GNU timeout.
+with_timeout() {
+  local secs=$1; shift
+  if command -v timeout >/dev/null; then timeout "$secs" "$@"; else
+    python3 -c '
+import subprocess, sys
+try:
+    sys.exit(subprocess.run(sys.argv[2:], timeout=float(sys.argv[1])).returncode)
+except subprocess.TimeoutExpired:
+    sys.exit(124)' "$secs" "$@"
+  fi
+}
+
+# A lock directory instead of flock (not on macOS); a lock left by a process that is gone is taken over.
+lock_take() {
+  local dir="$1.d" holder
+  until mkdir "$dir" 2>/dev/null; do
+    holder=$(cat "$dir/pid" 2>/dev/null || true)
+    if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then rm -rf "$dir"; continue; fi
+    sleep 1
+  done
+  echo $$ > "$dir/pid"
+}
+lock_release() { rm -rf "$1.d"; }
+
+# The name of the program running as pid, or nothing.
+process_command() { ps -p "$1" -o command= 2>/dev/null || true; }
+
 # Runs python with the lineage package (merge helpers), in the same venv as the lineage wrapper.
 lineage_py() {
   command -v uv >/dev/null || die "lineage needs uv: https://docs.astral.sh/uv/getting-started/installation/"
@@ -131,7 +172,7 @@ account_on_limit() {
 limit_reset_time() {
   local acc f
   for acc in $(account_table | awk -F'\t' '{print $1}'); do
-    f=$(limit_file "$acc"); [ -s "$f" ] && date -d "@$(cat "$f")" +%H:%M
+    f=$(limit_file "$acc"); [ -s "$f" ] && clock_time "$(cat "$f")"
   done | sort | head -1
 }
 

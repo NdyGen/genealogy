@@ -16,7 +16,7 @@ if command -v uv >/dev/null && ! cmp -s "$ROOT/cli/uv.lock" "$DATA/uv.lock"; the
   disown
 fi
 
-seen="$DATA/seen/$(printf '%s' "$PROJECT" | sha1sum | cut -c1-16)"
+seen="$DATA/seen/$(printf '%s' "$PROJECT" | { sha1sum 2>/dev/null || shasum; } | cut -c1-16)"
 if [ ! -e "$PROJECT/lineage.toml" ] && [ ! -e "$seen" ] \
   && find "$PROJECT" -maxdepth 2 -iname '*.ged' -print -quit 2>/dev/null | grep -q .; then
   notes+=("This folder contains a GEDCOM file but no lineage.toml. Offer the user /genealogy-research:setup to set up genealogy research here.")

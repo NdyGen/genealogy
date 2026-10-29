@@ -13,8 +13,10 @@ from lineage import (
     archive,
     book,
     browser,
+    build,
     coordinates,
     doctor,
+    edit,
     forum,
     gramps,
     gramps_tree,
@@ -768,6 +770,9 @@ def cmd_init(args: argparse.Namespace) -> int:
         )
     base = settings.load(existing.parent) if existing else settings.Config(root=root)
     c = _settings_from_args(base, args)
+    if args.new_tree and not c.path("gedcom").exists():
+        build.new_tree(c.path("gedcom"))
+        print(t("new tree: {path}", path=c.rel("gedcom")))
     tree = _load_quietly(c.path("gedcom"))
     for path in scaffold.write(c, tree, args.allow or [], overwrite_config=args.update):
         print(t("written: {path}", path=path.relative_to(c.root)))
@@ -841,6 +846,62 @@ def cmd_limits_parse(args: argparse.Namespace) -> int:
     if reset is None:
         return 1
     print(reset)
+    return 0
+
+
+def _built(path: Path, change) -> str:
+    """Applies change to the tree's lines, and keeps the file as it was if the result does not read back."""
+    if not path.exists():
+        raise SystemExit(t("{path} does not exist; start one with 'lineage init --new-tree'", path=path))
+    lines = edit.read(path)
+    result = change(lines)
+    before = path.read_bytes()
+    edit.write(path, lines)
+    try:
+        load(path)
+    except GedcomError as exc:
+        path.write_bytes(before)
+        raise SystemExit(t("the change would break the tree, nothing written: {error}", error=exc)) from exc
+    return result
+
+
+def cmd_add(args: argparse.Namespace) -> int:
+    path = _tree_file(args)
+    try:
+        if args.add_command == "person":
+            events = [
+                build.Event(tag, date or "", place or "")
+                for tag, date, place in (
+                    ("BIRT", args.born, args.born_place),
+                    ("CHR", args.baptized, args.baptized_place),
+                    ("DEAT", args.died, args.died_place),
+                    ("BURI", args.buried, args.buried_place),
+                )
+                if date or place
+            ]
+            if args.deceased and not any(e.tag in ("DEAT", "BURI") for e in events):
+                events.append(build.Event("DEAT"))
+            pid = _built(path, lambda lines: build.add_person(
+                lines, args.given or "", args.surname or "", args.sex, events,
+                args.occupation or "", args.note or "", args.source or "", args.page or "",
+            ))
+            print(reports.label(load(path).persons[pid]))
+        elif args.add_command == "family":
+            married = build.Event("MARR", args.married or "", args.married_place or "") if (
+                args.married or args.married_place
+            ) else None
+            fid = _built(path, lambda lines: build.add_family(
+                lines, [p.upper() for p in args.partner], [c.upper() for c in args.child or []],
+                married, args.source or "", args.page or "",
+            ))
+            print(fid)
+        else:
+            family, children = args.family.upper(), [c.upper() for c in args.ids]
+            _built(path, lambda lines: [build.add_child(lines, family, c) for c in children])
+            print(t("{family}: {count} child(ren) linked", family=args.family.upper(), count=len(args.ids)))
+    except (build.BuildError, edit.EditError) as exc:
+        print(exc, file=sys.stderr)
+        return 2
     return 0
 
 
@@ -962,6 +1023,9 @@ def build_parser() -> argparse.ArgumentParser:
         "init", help=f"write {settings.FILE} and the empty research files in this folder"
     )
     init.add_argument("--update", action="store_true", help=f"change the existing {settings.FILE}")
+    init.add_argument(
+        "--new-tree", action="store_true", help="start an empty GEDCOM when there is none yet (lineage add ...)"
+    )
     _setting_options(init)
     init.add_argument(
         "--allow",
@@ -970,6 +1034,38 @@ def build_parser() -> argparse.ArgumentParser:
         help="privacy exception for research/project.md (repeat)",
     )
     init.set_defaults(offline=cmd_init)
+
+    add = commands.add_parser(
+        "add", help="build the tree by hand: persons, families and children, each fact with its source"
+    )
+    add_commands = add.add_subparsers(dest="add_command", required=True)
+    add_person = add_commands.add_parser("person", help="add a person; prints the new ID")
+    add_person.add_argument("--given", help="given names")
+    add_person.add_argument("--surname", help="surname (for a married woman: her birth name)")
+    add_person.add_argument("--sex", default="U", help="M, F or U")
+    for event, word in (("born", "birth"), ("baptized", "baptism"), ("died", "death"), ("buried", "burial")):
+        add_person.add_argument(f"--{event}", metavar="DATE", help=f"{word} date: 12-3-1950, 1950, about 1890, ...")
+        add_person.add_argument(f"--{event}-place", metavar="PLACE", help="'Town, Province, Country'")
+    add_person.add_argument("--deceased", action="store_true", help="died, date and place unknown")
+    add_person.add_argument("--occupation")
+    add_person.add_argument("--note")
+    add_person.add_argument(
+        "--source", help="where the facts come from, e.g. 'Told by Anna Jansen (aunt), 2026' or 'Family booklet'"
+    )
+    add_person.add_argument("--page", help="detail within the source (page, record number)")
+    add_person.set_defaults(offline=cmd_add)
+    add_family = add_commands.add_parser("family", help="add a couple (or one parent) with children")
+    add_family.add_argument("--partner", action="append", required=True, metavar="ID", help="one or two")
+    add_family.add_argument("--child", action="append", metavar="ID")
+    add_family.add_argument("--married", metavar="DATE")
+    add_family.add_argument("--married-place", metavar="PLACE")
+    add_family.add_argument("--source")
+    add_family.add_argument("--page")
+    add_family.set_defaults(offline=cmd_add)
+    add_child = add_commands.add_parser("child", help="add children to an existing family")
+    add_child.add_argument("family")
+    add_child.add_argument("ids", nargs="+")
+    add_child.set_defaults(offline=cmd_add)
 
     migrate_parser = commands.add_parser(
         "migrate",

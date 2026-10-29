@@ -1,0 +1,12 @@
+{
+  "new tree: {path}": "nieuwe stamboom: {path}",
+  "{path} does not exist; start one with 'lineage init --new-tree'": "{path} bestaat niet; begin er een met 'lineage init --new-tree'",
+  "the change would break the tree, nothing written: {error}": "de wijziging zou de stamboom onleesbaar maken, niets geschreven: {error}",
+  "{family}: {count} child(ren) linked": "{family}: {count} kind(eren) gekoppeld",
+  "no 0 TRLR line at the end of the tree": "geen regel 0 TRLR aan het eind van de stamboom",
+  "{path} already exists": "{path} bestaat al",
+  "a person needs a given name or a surname": "een persoon heeft een voornaam of een achternaam nodig",
+  "sex is M, F or U, not '{sex}'": "geslacht is M, F of U, niet '{sex}'",
+  "a family has one or two partners": "een gezin heeft één of twee partners",
+  "cannot read the date '{date}'; write it like 12-3-1950, 1950 or about 1890": "kan de datum '{date}' niet lezen; schrijf hem als 12-3-1950, 1950 of omstreeks 1890"
+}

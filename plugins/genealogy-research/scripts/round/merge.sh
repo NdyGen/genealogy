@@ -130,10 +130,13 @@ if [ "$UPDATE_ROUND" = 0 ] && [ -d "$WT_OUT" ]; then
   # Keep the folder layout: scans of different inventories often share a file name like 098.jpg.
   (cd "$WT_OUT" && find . -type f -print0 | while IFS= read -r -d '' f; do
     case "$(file --mime-type -b "$f")" in
-      image/*|application/pdf) cp --parents --update=none "$f" "$ROOT/$SOURCES/scans/dr-$ID/" || exit 1;;
+      image/*|application/pdf)
+        target="$ROOT/$SOURCES/scans/dr-$ID/${f#./}"
+        [ -e "$target" ] && continue
+        mkdir -p "$(dirname "$target")" && cp "$f" "$target" || exit 1;;
     esac
   done) || {
-    # A failed copy (full disk) leaves a truncated file that --update=none would keep; the worktree has the original.
+    # A failed copy (full disk) leaves a truncated file that a rerun would keep; the worktree has the original.
     echo "scans not fully copied to $SOURCES/scans/dr-$ID; worktree stays. Make room, remove the half-copied folder and run again." >&2
     exit 1
   }

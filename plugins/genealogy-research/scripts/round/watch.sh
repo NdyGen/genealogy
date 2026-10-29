@@ -32,7 +32,7 @@ LOCK="$COMMON/dr-watch.lock"
 for attempt in 1 2 3; do
   if (set -o noclobber; echo $$ > "$LOCK") 2>/dev/null; then break; fi
   old=$(cat "$LOCK" 2>/dev/null || true)
-  if [ -n "$old" ] && [ -r "/proc/$old/cmdline" ] && tr '\0' ' ' < "/proc/$old/cmdline" 2>/dev/null | grep -Eq 'watch\.sh|wacht\.sh'; then
+  if [ -n "$old" ] && process_command "$old" | grep -Eq 'watch\.sh|wacht\.sh'; then
     echo "watcher already running (pid $old)"
     exit 75
   fi
@@ -104,12 +104,12 @@ switch_on_limit() {
   done
   if [ "${DR_AUTO_SWITCH:-${DR_AUTO_WISSEL:-1}}" = 1 ] && [ -n "$other" ]; then
     if result=$("$ROUND_DIR/start.sh" "$id" --resume --account "$other" 2>&1 | tail -1); then
-      echo "$id limit $acc (reset $(date -d "@$reset" +%H:%M)); resumed on $other"
+      echo "$id limit $acc (reset $(clock_time "$reset")); resumed on $other"
     else
       echo "$id limit $acc; resuming on $other failed: $result"
     fi
   else
-    echo "$id limit $acc (reset $(date -d "@$reset" +%H:%M)); no other account free or switching off, waiting"
+    echo "$id limit $acc (reset $(clock_time "$reset")); no other account free or switching off, waiting"
   fi
 }
 

@@ -15,8 +15,8 @@ runner_start_leader() {
   (
     cd "$wt"
     eval "$(account_env_snippet "$account")"
-    # setsid gives the leader its own process group, so runner_stop can end it with its children.
-    setsid nohup claude -p "$prompt" --model "$model" --permission-mode auto \
+    # Its own process group, so runner_stop can end it with its children.
+    detach nohup claude -p "$prompt" --model "$model" --permission-mode auto \
       --output-format stream-json --verbose > "$out/leader.log" 2>&1 < /dev/null &
     echo $! > "$out/leader.pid"
   )
@@ -31,7 +31,7 @@ runner_start_helper() {
   log=$(mktemp)
   # shellcheck disable=SC2064
   trap "rm -f '$log'" EXIT
-  (cd "$wt" && timeout "${max_min}m" claude -p --agent "$agent" --permission-mode auto "$prompt") > "$log" 2>&1 && rc=0 || rc=$?
+  (cd "$wt" && with_timeout "$((max_min * 60))" claude -p --agent "$agent" --permission-mode auto "$prompt") > "$log" 2>&1 && rc=0 || rc=$?
   if [ "$rc" = 124 ]; then helper_fail "$result" "$name" "not done after $max_min minutes" "$(tail -n 60 "$log")"; return 1; fi
   if [ "$rc" != 0 ]; then helper_fail "$result" "$name" "exited with status $rc" "$(tail -n 60 "$log")"; return 1; fi
   [ -s "$result" ] || { helper_fail "$result" "$name" "stopped without a result" "$(tail -n 60 "$log")"; return 1; }
