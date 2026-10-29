@@ -1,0 +1,33 @@
+[project]
+name = "lineage"
+version = "0.1.0"
+description = "Genealogy research tools for GEDCOM trees"
+license = "MIT"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "osmium>=4.3.1",
+    "pillow>=13.0.0",
+    "playwright>=1.64.0",
+]
+
+[project.scripts]
+lineage = "lineage.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

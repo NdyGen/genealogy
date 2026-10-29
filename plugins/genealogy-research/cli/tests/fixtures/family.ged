@@ -1,0 +1,83 @@
+0 HEAD
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME John /Miller/
+1 SEX M
+1 BIRT
+2 DATE 3 MAR 1920
+2 PLAC Northfield
+2 SOUR @S1@
+3 PAGE record 123
+1 FAMC @F1@
+1 FAMS @F3@
+0 @I2@ INDI
+1 NAME William /Miller/
+1 SEX M
+1 BIRT
+2 DATE 1890
+2 PLAC Northfield
+2 SOUR @S1@
+1 DEAT
+2 DATE 12 JAN 1960
+2 PLAC Northfield
+1 OCCU Carpenter
+1 FAMC @F2@
+1 FAMS @F1@
+0 @I3@ INDI
+1 NAME Mary /Brown/
+1 SEX F
+1 BIRT
+2 DATE ABT 1893
+1 DEAT Y
+2 DATE 1970
+1 FAMS @F1@
+1 NOTE According to the marriage record born at Eastbrook.
+0 @I4@ INDI
+1 NAME Henry /Miller/
+1 SEX M
+1 BIRT
+2 DATE 1860
+1 DEAT
+2 DATE 1930
+1 FAMS @F2@
+0 @I5@ INDI
+1 NAME Anna /Taylor/
+1 SEX F
+1 BIRT
+2 DATE 1862
+1 DEAT
+2 DATE BEF 1940
+1 FAMS @F2@
+0 @I6@ INDI
+1 NAME Margaret /Smith/
+1 SEX F
+1 BIRT
+2 DATE 1922
+1 FAMS @F3@
+0 @I7@ INDI
+1 NAME James /Miller/
+1 SEX M
+1 BIRT
+2 DATE 1950
+1 FAMC @F3@
+0 @F1@ FAM
+1 HUSB @I2@
+1 WIFE @I3@
+1 CHIL @I1@
+1 MARR
+2 DATE 1915
+2 PLAC Northfield
+0 @F2@ FAM
+1 HUSB @I4@
+1 WIFE @I5@
+1 CHIL @I2@
+0 @F3@ FAM
+1 HUSB @I1@
+1 WIFE @I6@
+1 CHIL @I7@
+0 @S1@ SOUR
+1 TITL Civil Registry Northfield, births
+0 TRLR

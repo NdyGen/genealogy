@@ -1,0 +1,12 @@
+{
+  "write {file}": "{file} schrijven",
+  "convert {path}: {what}": "{path} omzetten: {what}",
+  "remove {path} (now in {file})": "{path} verwijderen (staat nu in {file})",
+  "copy credentials {old} -> {new} (LINEAGE_ keys, mode 600)": "inloggegevens kopiëren {old} -> {new} (LINEAGE_-sleutels, rechten 600)",
+  "English columns and statuses": "Engelse kolommen en statussen",
+  "English header keys and status": "Engelse kopsleutels en status",
+  "English column names": "Engelse kolomnamen",
+  "English column names and levels": "Engelse kolomnamen en niveaus",
+  "nothing changed; run again with --apply": "niets gewijzigd; opnieuw met --apply om het uit te voeren",
+  "migrated; check with 'git diff' and commit {file}": "omgezet; controleer met 'git diff' en commit {file}"
+}

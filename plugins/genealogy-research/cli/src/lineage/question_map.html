@@ -1,0 +1,277 @@
+<title>[[title]]</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,500;7..72,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a register sheet. Generations run down like rows in an ancestor table, the sixteen lines run across;
+   ink-blue heat on a cool paper ground, details open beside or below the sheet. */
+:root {
+  --paper: #f3f5f7;
+  --sheet: #ffffff;
+  --ink: #1d2733;
+  --muted: #5c6b7a;
+  --rule: #d5dce3;
+  --accent: #2f5d8a;
+  --heat-0: #eef2f6;
+  --heat-hi: 32 74 122;
+  --gap: #a3542f;
+  --display: "Literata", Georgia, "Times New Roman", serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #12171d; --sheet: #19212a; --ink: #e3e9ef; --muted: #96a5b4; --rule: #2c3846;
+    --accent: #8db8e3; --heat-0: #1f2832; --heat-hi: 141 184 227; --gap: #e0895f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #12171d; --sheet: #19212a; --ink: #e3e9ef; --muted: #96a5b4; --rule: #2c3846;
+  --accent: #8db8e3; --heat-0: #1f2832; --heat-hi: 141 184 227; --gap: #e0895f; color-scheme: dark;
+}
+body { background: var(--paper); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-block: 28px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px; }
+h1, h2 { font-family: var(--display); font-weight: 700; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(1.6rem, 3.4vw, 2.3rem); line-height: 1.15; }
+h2 { font-size: 1.25rem; }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--muted); }
+.eyebrow { font: 500 0.75rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+header { display: grid; gap: 10px; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px 28px; margin-top: 6px; }
+.stat { display: grid; gap: 2px; }
+.stat b { font: 500 1.5rem/1.1 var(--mono); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 0.8rem; color: var(--muted); }
+.stat.gap b { color: var(--gap); }
+section { display: grid; gap: 14px; }
+.sheet { background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; padding: 16px; min-width: 0; }
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.seg { display: inline-flex; border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; }
+.seg button { font: 500 0.85rem var(--body); color: var(--ink); background: transparent; border: 0; padding: 7px 12px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--rule); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--sheet); }
+.seg button:focus-visible, .cell:focus-visible, .rcell:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.legend { display: flex; align-items: center; gap: 8px; font: 0.75rem var(--mono); color: var(--muted); }
+.legend i { display: block; width: 120px; height: 10px; border-radius: 2px; border: 1px solid var(--rule); }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 20px; align-items: start; }
+@media (max-width: 920px) { .split { grid-template-columns: minmax(0, 1fr); } }
+.scroll { overflow-x: auto; }
+table.heat { border-collapse: separate; border-spacing: 3px; font-variant-numeric: tabular-nums; }
+.heat th { font: 500 0.72rem/1.2 var(--body); color: var(--muted); padding: 2px 4px; white-space: nowrap; }
+.heat thead th.line { writing-mode: vertical-rl; transform: rotate(180deg); text-align: left; height: 104px; vertical-align: bottom; }
+.heat thead th.line.paternal { color: var(--accent); font-weight: 600; }
+.heat thead th.side { text-align: center; font: 500 0.72rem var(--mono); letter-spacing: 0.06em; text-transform: uppercase; border-bottom: 1px solid var(--rule); }
+.heat tbody th { text-align: right; font: 0.75rem var(--mono); }
+.heat tbody th small { display: block; font: 0.68rem var(--body); color: var(--muted); }
+.cell { width: 38px; height: 30px; border-radius: 3px; border: 0; padding: 0; cursor: pointer; font: 500 0.72rem var(--mono);
+  color: var(--ink); background: var(--heat-0); }
+.cell.empty { background: transparent; border: 1px dashed var(--rule); cursor: default; color: transparent; }
+.cell.sel { outline: 2px solid var(--ink); outline-offset: 1px; }
+.cell.paternal { box-shadow: inset 0 -3px 0 var(--accent); }
+.detail { display: grid; gap: 12px; min-width: 0; }
+.detail h3 { margin: 0; font: 600 1rem var(--body); }
+.detail .hint { color: var(--muted); font-size: 0.9rem; }
+.plist { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; max-height: 620px; overflow-y: auto; }
+.plist li { border-top: 1px solid var(--rule); padding-top: 8px; display: grid; gap: 4px; }
+.pname { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.pname b { font-weight: 600; }
+.pname code { font: 0.75rem var(--mono); color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: 500 0.7rem var(--mono); padding: 2px 6px; border-radius: 3px; border: 1px solid var(--rule); color: var(--muted); }
+.chip.open { color: var(--accent); border-color: var(--accent); }
+.chip.gap { color: var(--gap); border-color: var(--gap); }
+details summary { cursor: pointer; font-size: 0.82rem; color: var(--accent); }
+details ul { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 0.82rem; }
+details li span { font: 0.7rem var(--mono); color: var(--muted); }
+table.regions { border-collapse: separate; border-spacing: 3px; width: 100%; font-variant-numeric: tabular-nums; }
+.regions th { font: 500 0.78rem var(--body); color: var(--muted); text-align: left; padding: 2px 6px; }
+.regions th.num { text-align: center; }
+.rcell { text-align: center; font: 500 0.8rem var(--mono); border-radius: 3px; padding: 6px 4px; background: var(--heat-0); }
+.trend svg { width: 100%; height: auto; display: block; }
+.trend text { fill: var(--muted); font: 11px var(--mono); }
+footer { color: var(--muted); font-size: 0.82rem; display: grid; gap: 6px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">__EYEBROW__</span>
+    <h1>[[heading]]</h1>
+    <p class="lede">[[intro]]</p>
+    <div class="stats" id="stats"></div>
+  </header>
+
+  <section>
+    <div class="controls">
+      <div class="seg" role="group" aria-label="[[measure]]">
+        <button type="button" id="m-open" data-m="open" aria-pressed="true">[[measure_open]]</button>
+        <button type="button" id="m-gaps" data-m="gaps" aria-pressed="false">[[measure_gaps]]</button>
+        <button type="button" id="m-known" data-m="known" aria-pressed="false">[[measure_known]]</button>
+      </div>
+      <div class="legend"><span id="lg-lo">0</span><i id="lg-bar"></i><span id="lg-hi"></span></div>
+    </div>
+    <div class="split">
+      <div class="sheet scroll"><table class="heat" id="heat"></table></div>
+      <aside class="sheet detail" id="detail" aria-live="polite"></aside>
+    </div>
+  </section>
+
+  <section>
+    <h2>[[regions_heading]]</h2>
+    <p class="lede">[[regions_intro]]</p>
+    <div class="sheet scroll"><table class="regions" id="regions"></table></div>
+  </section>
+
+  <section>
+    <h2>[[progress_heading]]</h2>
+    <p class="lede">[[progress_intro]]</p>
+    <div class="sheet trend" id="trend"></div>
+  </section>
+
+  <footer>
+    <p id="as-of"></p>
+    <p>[[footer]]</p>
+  </footer>
+</div>
+
+<script type="application/json" id="data">__DATA__</script>
+<script type="application/json" id="labels">__LABELS__</script>
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById("data").textContent);
+  const TX = JSON.parse(document.getElementById("labels").textContent);
+  const fill = (text, values) => text.replace(/\{(\w+)\}/g, (_, k) => values[k]);
+  const term = g => TX.terms[g] || fill(TX.generation, { n: g });
+  const fmt = n => n.toLocaleString(TX.locale);
+  const measureLabel = { open: TX.stat_open, gaps: TX.stat_gaps, known: TX.measure_known.toLowerCase() };
+  const kindLabel = k => TX.kinds[k] || k;
+  let measure = "open", chosen = null;
+
+  const T = D.totals;
+  document.getElementById("stats").innerHTML = [
+    [T.open, TX.stat_open], [T.online, TX.stat_online], [T.on_site, TX.stat_on_site],
+    [T.choice, TX.stat_choice], [T.solved, TX.stat_solved], [T.gaps, TX.stat_gaps, "gap"],
+  ].map(([n, l, c]) => `<div class="stat ${c || ""}"><b>${fmt(n)}</b><span>${l}</span></div>`).join("");
+  document.getElementById("as-of").textContent =
+    fill(TX.as_of, {
+      date: new Date(T.date).toLocaleDateString(TX.locale, { day: "numeric", month: "long", year: "numeric" }),
+      ancestors: fmt(T.ancestors), generations: D.generations,
+    });
+
+  const css = getComputedStyle(document.documentElement);
+  const hi = () => css.getPropertyValue("--heat-hi").trim().split(/\s+/).join(",");
+  const shade = (v, max) => {
+    if (!v) return "";
+    const a = 0.12 + 0.88 * Math.sqrt(v / max);
+    return `rgba(${hi()},${a.toFixed(3)})`;
+  };
+  const textColor = (v, max) => (v && Math.sqrt(v / max) > 0.55 ? "var(--sheet)" : "var(--ink)");
+
+  const heat = document.getElementById("heat");
+  function drawHeat() {
+    const values = Object.values(D.cells).map(c => c[measure]);
+    const max = Math.max(1, ...values);
+    document.getElementById("lg-hi").textContent = fmt(max);
+    document.getElementById("lg-bar").style.background = `linear-gradient(90deg, var(--heat-0), rgba(${hi()},1))`;
+    const sides = [TX.fathers_side, TX.mothers_side];
+    let h = `<thead><tr><th></th>${sides.map(k => `<th class="side" colspan="8">${k}</th>`).join("")}</tr>`;
+    h += `<tr><th></th>${D.lines.map(l => `<th class="line ${l.paternal ? "paternal" : ""}" scope="col">${l.label}</th>`).join("")}</tr></thead><tbody>`;
+    for (let g = D.first_generation; g <= D.generations; g++) {
+      h += `<tr><th scope="row">${g}<small>${term(g)}</small></th>`;
+      D.lines.forEach((l, i) => {
+        const c = D.cells[`${g}:${i}`];
+        const id = `c-${g}-${i}`;
+        if (!c) { h += `<td><span class="cell empty" aria-hidden="true"></span></td>`; return; }
+        const v = c[measure];
+        const sel = chosen === `${g}:${i}` ? " sel" : "";
+        h += `<td><button type="button" id="${id}" class="cell${l.paternal ? " paternal" : ""}${sel}" data-k="${g}:${i}"
+          style="background:${shade(v, max) || "var(--heat-0)"};color:${textColor(v, max)}"
+          aria-label="${fill(TX.cell, { line: l.label, generation: g, value: v, measure: measureLabel[measure] })}">${v || ""}</button></td>`;
+      });
+      h += "</tr>";
+    }
+    heat.innerHTML = h + "</tbody>";
+  }
+
+  const detail = document.getElementById("detail");
+  function showDetail() {
+    if (!chosen) {
+      const top = Object.entries(D.persons).filter(([, p]) => p.name)
+        .sort((a, b) => (b[1].own + b[1].side_branch) - (a[1].own + a[1].side_branch)).slice(0, 8);
+      detail.innerHTML = `<h3>${TX.most_open}</h3><p class="hint">${TX.pick_cell}</p>
+        <ul class="plist">${top.map(([id, p]) => person(id, p)).join("")}</ul>`;
+      return;
+    }
+    const [g, i] = chosen.split(":").map(Number);
+    const c = D.cells[chosen];
+    const list = c.persons.map(id => [id, D.persons[id]])
+      .sort((a, b) => (b[1].own + b[1].side_branch + b[1].gap) - (a[1].own + a[1].side_branch + a[1].gap));
+    const anonymous = list.filter(([, p]) => !p.name).length;
+    detail.innerHTML = `<div><span class="eyebrow">${fill(TX.detail_eyebrow, { generation: g, term: term(g) })}</span><h3>${fill(TX.detail_line, { label: D.lines[i].label })}</h3></div>
+      <div class="chips"><span class="chip open">${fill(TX.chip_open, { count: c.open })}</span><span class="chip gap">${fill(TX.chip_gaps, { count: c.gaps })}</span><span class="chip">${fill(TX.chip_known, { known: c.known, total: 2 ** (g - D.first_generation) })}</span></div>
+      <ul class="plist">${list.filter(([, p]) => p.name).map(([id, p]) => person(id, p)).join("")}</ul>
+      ${anonymous ? `<p class="hint">${fill(anonymous > 1 ? TX.anonymous_many : TX.anonymous_one, { count: anonymous })}</p>` : ""}`;
+  }
+  function person(id, p) {
+    const qs = p.questions.length ? `<details><summary>${fill(p.questions.length > 1 ? TX.show_many : TX.show_one, { count: p.questions.length })}</summary><ul>${
+      p.questions.map(q => `<li><span>${kindLabel(q.kind)}${q.how === "side_branch" ? ` · ${TX.side_branch}` : ""}</span> ${esc(q.text)}</li>`).join("")}</ul></details>` : "";
+    return `<li><div class="pname"><b>${esc(p.name)}</b><code>${id}</code></div>
+      <div class="chips">${p.years ? `<span class="chip">${p.years}</span>` : ""}${p.own ? `<span class="chip open">${fill(TX.own, { count: p.own })}</span>` : ""}${p.side_branch ? `<span class="chip open">${fill(TX.chip_side_branch, { count: p.side_branch })}</span>` : ""}${p.gap ? `<span class="chip gap">${p.gap === 2 ? TX.parents_unknown : TX.parent_unknown}</span>` : ""}</div>${qs}</li>`;
+  }
+  const esc = s => String(s).replace(/[&<>"]/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+
+  heat.addEventListener("click", e => {
+    const b = e.target.closest("button.cell");
+    if (!b) return;
+    chosen = chosen === b.dataset.k ? null : b.dataset.k;
+    drawHeat(); showDetail();
+    if (chosen) document.getElementById(`c-${chosen.replace(":", "-")}`)?.focus();
+  });
+  document.querySelectorAll(".seg button").forEach(b => b.addEventListener("click", () => {
+    measure = b.dataset.m;
+    document.querySelectorAll(".seg button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    drawHeat();
+    try { localStorage.setItem("question-map-measure", measure); } catch (_) {}
+  }));
+  try {
+    const m = localStorage.getItem("question-map-measure");
+    if (m) document.querySelector(`.seg button[data-m="${m}"]`)?.click();
+  } catch (_) {}
+
+  function drawRegions() {
+    const groups = [...new Set(D.regions.map(r => r.group))];
+    const count = (g, s) => (D.regions.find(r => r.group === g && r.kind === s) || {}).count || 0;
+    const max = Math.max(1, ...D.regions.map(r => r.count));
+    const rows = groups.map(g => [g, D.kinds.map(s => count(g, s))]).sort((a, b) => b[1].reduce((x, y) => x + y) - a[1].reduce((x, y) => x + y));
+    document.getElementById("regions").innerHTML =
+      `<thead><tr><th>${TX.region}</th>${D.kinds.map(s => `<th class="num">${kindLabel(s)}</th>`).join("")}<th class="num">${TX.total}</th></tr></thead><tbody>${
+      rows.map(([g, w]) => `<tr><th scope="row">${esc(g)}</th>${w.map(v => `<td class="rcell" style="background:${shade(v, max) || "var(--heat-0)"};color:${textColor(v, max)}">${v || ""}</td>`).join("")}<td class="rcell">${w.reduce((x, y) => x + y)}</td></tr>`).join("")}</tbody>`;
+  }
+
+  function drawTrend() {
+    const H = D.history;
+    const W = 720, Hh = 200, L = 44, R = 16, B = 26, Tp = 12;
+    const series = [["open", "var(--accent)", TX.trend_open], ["solved", "var(--muted)", TX.trend_solved], ["gaps", "var(--gap)", TX.trend_gaps]];
+    const max = Math.max(1, ...H.flatMap(r => series.map(([k]) => r[k])));
+    const x = i => H.length === 1 ? (L + W - R) / 2 : L + i * (W - L - R) / (H.length - 1);
+    const y = v => Tp + (1 - v / max) * (Hh - Tp - B);
+    const step = Math.pow(10, Math.floor(Math.log10(max))) * (max / Math.pow(10, Math.floor(Math.log10(max))) > 5 ? 1 : 0.5);
+    let s = `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="${TX.trend_aria}">`;
+    for (let v = 0; v <= max; v += step) s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--rule)" stroke-width="1"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${fmt(v)}</text>`;
+    series.forEach(([k, c]) => {
+      if (H.length > 1) s += `<polyline fill="none" stroke="${c}" stroke-width="2" points="${H.map((r, i) => `${x(i)},${y(r[k])}`).join(" ")}"/>`;
+      s += `<circle cx="${x(H.length - 1)}" cy="${y(H[H.length - 1][k])}" r="4" fill="${c}"/>`;
+    });
+    [0, H.length - 1].filter((v, i, a) => a.indexOf(v) === i).forEach(i =>
+      s += `<text x="${x(i)}" y="${Hh - 6}" text-anchor="${H.length === 1 ? "middle" : i ? "end" : "start"}">${H[i].date}</text>`);
+    s += "</svg>";
+    s += `<div class="chips">${series.map(([k, c, l]) => `<span class="chip" style="color:${c};border-color:${c}">${l}: ${fmt(H[H.length - 1][k])}</span>`).join("")}</div>`;
+    document.getElementById("trend").innerHTML = s;
+  }
+
+  drawHeat(); showDetail(); drawRegions(); drawTrend();
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { drawHeat(); drawRegions(); });
+  new MutationObserver(() => { drawHeat(); drawRegions(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+})();
+</script>

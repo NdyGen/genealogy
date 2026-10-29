@@ -1,0 +1,38 @@
+{
+  "name": "genealogy-research",
+  "displayName": "Genealogy research",
+  "version": "0.1.0",
+  "description": "Deep research per ancestor in your own GEDCOM tree: fact checks against archive sources, records beyond baptism, marriage and burial, historical background, family completion, life stories and a life book. Includes the lineage CLI.",
+  "author": {
+    "name": "Andy van Dongen"
+  },
+  "repository": "https://github.com/NdyGen/genealogy",
+  "keywords": [
+    "genealogy",
+    "gedcom",
+    "family-tree",
+    "archives",
+    "research"
+  ],
+  "license": "MIT",
+  "userConfig": {
+    "language": {
+      "type": "string",
+      "title": "Output language",
+      "description": "Default language for reports, life stories and CLI messages in new projects (ISO code, e.g. en or nl). Each project can override it in lineage.toml.",
+      "default": "en"
+    },
+    "runner": {
+      "type": "string",
+      "title": "Runner",
+      "description": "How research rounds and helper agents run: auto (Herdr when available, otherwise inline), herdr, headless or inline.",
+      "options": [
+        "auto",
+        "herdr",
+        "headless",
+        "inline"
+      ],
+      "default": "auto"
+    }
+  }
+}

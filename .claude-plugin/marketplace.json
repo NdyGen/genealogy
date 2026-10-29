@@ -1,0 +1,12 @@
+{
+  "name": "genealogy",
+  "owner": { "name": "NdyGen", "url": "https://github.com/NdyGen" },
+  "description": "Genealogy research with Claude Code: source-checked research per person in your own GEDCOM tree, life stories and a life book.",
+  "plugins": [
+    {
+      "name": "genealogy-research",
+      "source": "./plugins/genealogy-research",
+      "description": "Deep research per ancestor against archive sources, helper agents for archive search and scan reading, life stories, and the lineage CLI."
+    }
+  ]
+}
