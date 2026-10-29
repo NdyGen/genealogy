@@ -93,7 +93,7 @@
   "changed in Gramps Web since last time, that version stays (copy it into the GEDCOM):": "in Gramps Web gewijzigd sinds de vorige keer, die versie blijft staan (overnemen in de GEDCOM):",
   "own objects in Gramps Web, stay: {objects}": "eigen objecten in Gramps Web, blijven staan: {objects}",
   "objects without a reference: {count}": "objecten zonder verwijzing: {count}",
-  "places without coordinates (add to data/coordinates.tsv): {places}": "plaatsen zonder coördinaten (aanvullen in data/coordinates.tsv): {places}",
+  "places without coordinates (add to {table}): {places}": "plaatsen zonder coördinaten (aanvullen in {table}): {places}",
   "media: nothing new": "media: niets nieuws",
   "media: {count} files uploaded ({result})": "media: {count} bestanden geüpload ({result})",
   "{url}: HTTP {code}": "{url}: HTTP {code}",

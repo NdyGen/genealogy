@@ -107,11 +107,11 @@ else
   fi
 fi
 
+# From here on only reports: a failing check must not leave the worktree and branch behind.
 echo "validate: $(lineage validate --level info | tail -1)"
-if [ -d "$ROOT/tests" ] && [ -f "$ROOT/pyproject.toml" ]; then uv run pytest -q | tail -1; fi
 
 # Corrections made in one record often leave the same old fact in the stories of relatives.
-STALE=$(lineage stale --short | xargs)
+STALE=$(lineage stale --short | xargs) || STALE=""
 [ -z "$STALE" ] || echo "life stories that lag behind: $STALE"
 # Every so many merged rounds the coordinator turns the logged lessons into skill rules.
 COUNTER=$(state_read_path dr-rounds-since-improvement dr-rondes-sinds-verbeterronde)

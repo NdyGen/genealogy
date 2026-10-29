@@ -409,6 +409,7 @@ class Report:
     foreign: Counter[str] = field(default_factory=Counter)
     loose: int = 0
     without_coordinates: list[str] = field(default_factory=list)
+    coordinates_table: str = ""
     summary: dict = field(default_factory=dict)
     media: str = ""
     # Kept edits keep the fingerprint from before the edit, so they are reported again next
@@ -465,7 +466,8 @@ class Report:
         if self.without_coordinates:
             out.append(
                 t(
-                    "places without coordinates (add to data/coordinates.tsv): {places}",
+                    "places without coordinates (add to {table}): {places}",
+                    table=self.coordinates_table,
                     places="; ".join(self.without_coordinates),
                 )
             )
@@ -712,9 +714,9 @@ def assemble(
     report = Report()
     server_by_handle = {o["handle"]: o for o in server}
     tree = stable_handles(read_gedcom(gedcom))
-    report.without_coordinates = set_coordinates(
-        tree, read_coordinates(coordinates.table_for(gedcom))
-    )
+    table = coordinates.table_for(gedcom)
+    report.coordinates_table = os.path.relpath(table)
+    report.without_coordinates = set_coordinates(tree, read_coordinates(table))
 
     foreign_tags = {
         o["name"]: o["handle"] for o in server if o["_class"] == "Tag" and not is_own(o["handle"])
@@ -781,7 +783,7 @@ def assemble(
 
 def export(g: Gramps) -> list[dict]:
     data = g.api(
-        "GET", "exporters/jsonl/file", query={"reference": "true", "compress": "false"}, ruw=True
+        "GET", "exporters/jsonl/file", query={"reference": "true", "compress": "false"}, raw=True
     )
     assert isinstance(data, bytes)
     return [json.loads(r) for r in data.decode("utf-8").splitlines() if r.strip()]

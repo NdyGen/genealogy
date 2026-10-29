@@ -220,7 +220,7 @@ def _tile(url: str):
     from PIL import Image, UnidentifiedImageError
 
     for attempt in range(4):
-        data = web.fetch(url, pauze=0.05)
+        data = web.fetch(url, pause=0.05)
         try:
             return Image.open(io.BytesIO(data)).convert("RGB")
         except UnidentifiedImageError:
@@ -357,7 +357,7 @@ def _archieven_set(url: str, maximum: int) -> tuple[list[tuple[str, str, str, st
             # After the first one the viewer overlay covers the strip.
             thumbnail.dispatch_event("click")
             for _ in range(30):
-                fresh = [t for u in seen if (t := zoomify(u)) and t[1] not in known]
+                fresh = [z for u in seen if (z := zoomify(u)) and z[1] not in known]
                 if fresh:
                     known.add(fresh[0][1])
                     result.append((name, mais_download(src) or "", *fresh[0]))

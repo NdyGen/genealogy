@@ -119,6 +119,8 @@ def test_new_link_with_derived_identity_without_quay_1():
     assert review.derived_links(old, proven) == [("I1", "F1")]
     assert review.derived_links(old, marked) == []
     assert review.derived_links(proven, proven) == []
+    baptism = proven.replace("patronymic and birthplace.", "with the baptism: given name and both parents. Rich.")
+    assert review.derived_links(old, baptism) == []
 
 
 def test_helper_agent_quote_in_a_life_story():

@@ -28,6 +28,11 @@ _DERIVED = re.compile(
     r"identificatie|identiteit|berust|kenmerk|geen andere|identification|identity|rests on|characteristic|no other",
     re.IGNORECASE,
 )
+# A sentence that anchors the identity in a record naming the parents is not a derived identity.
+_PARENTS_NAMED = re.compile(
+    r"beide ouders|vader en moeder|ouders genoemd|both parents|father and mother|parents named",
+    re.IGNORECASE,
+)
 _QUOTE = re.compile(r'["“„]([^"“”„]{20,})["”]')
 _HELPER_READING = re.compile(
     r"alleen door (?:de |een )?hulpagent|lezing (?:van )?(?:de |een )?hulpagent|volgens de hulpagent"
@@ -203,7 +208,8 @@ def derived_links(old: str, new: str) -> list[tuple[str, str]]:
         for fam, block in _famc_blocks(lines).items():
             if fam in old_blocks or "3 QUAY 1" in block:
                 continue
-            if _DERIVED.search(_joined_notes(lines)):
+            sentences = _SENTENCE.split(_joined_notes(lines))
+            if any(_DERIVED.search(s) and not _PARENTS_NAMED.search(s) for s in sentences):
                 found.append((xref, fam))
     return found
 
