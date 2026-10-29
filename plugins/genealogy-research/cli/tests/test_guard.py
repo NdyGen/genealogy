@@ -73,6 +73,7 @@ class World:
         self.agents = {}
         self.screens = {}
         self.resumed = []
+        self.sessions = {"w1:p-other"}
 
     def research(self, id_, account="work", done=False):
         out = self.root / ".worktrees" / f"dr-{id_}" / "output"
@@ -87,6 +88,9 @@ class World:
 
     def agent_panes(self):
         return {name: f"w1:p-{name}" for name in self.agents}
+
+    def live_panes(self):
+        return {*self.agent_panes().values(), *self.sessions}
 
     def screen(self, name):
         return self.screens.get(name, "")
@@ -284,6 +288,17 @@ def test_auto_coordinator_closed_when_another_session_coordinates(tmp_path):
     w.agents["coordinator"] = "idle"
     coord_round(w, c, tmp_path, now + 120, beat=now + 100)
     assert c.closed == 1 and c.started == []
+
+
+def test_heartbeat_of_a_closed_pane_is_not_another_session(tmp_path):
+    w = World(tmp_path)
+    (tmp_path / ".worktrees").mkdir()
+    c = Coord(w)
+    w.agents["coordinator"] = "idle"
+    w.sessions = set()
+    now = ts(2026, 10, 3, 13, 0)
+    coord_round(w, c, tmp_path, now, beat=now - 60)
+    assert c.closed == 0 and "coordinator" in w.agents
 
 
 def test_auto_coordinator_kept_while_main_is_not_clean(tmp_path):

@@ -60,6 +60,7 @@ def choose_account(
 class Herdr(Protocol):
     def agent_status(self) -> dict[str, str]: ...
     def agent_panes(self) -> dict[str, str]: ...
+    def live_panes(self) -> set[str]: ...
     def screen(self, name: str) -> str: ...
 
 
@@ -71,6 +72,10 @@ class HerdrCli:
     def agent_panes(self) -> dict[str, str]:
         out = subprocess.run(["herdr", "agent", "list"], capture_output=True, text=True, check=True).stdout
         return {a["name"]: a["pane_id"] for a in json.loads(out)["result"]["agents"] if a.get("name")}
+
+    def live_panes(self) -> set[str]:
+        out = subprocess.run(["herdr", "agent", "list"], capture_output=True, text=True, check=True).stdout
+        return {a["pane_id"] for a in json.loads(out)["result"]["agents"]}
 
     def screen(self, name: str) -> str:
         return subprocess.run(
@@ -305,7 +310,12 @@ class Guard:
         status = agents.get(COORDINATOR)
         own_pane = self.herdr.agent_panes().get(COORDINATOR) if status else None
         beats = self._heartbeats()
-        others = [max(0, now - s) for p, s in beats.items() if p != own_pane and now - s < COORDINATOR_QUIET]
+        # A closed pane leaves its last beat behind; only a pane that still runs an agent is another session.
+        live = self.herdr.live_panes()
+        others = [
+            max(0, now - s) for p, s in beats.items()
+            if p != own_pane and p in live and now - s < COORDINATOR_QUIET
+        ]
         own = beats.get(own_pane, 0) if own_pane else 0
         watcher = (f"other watcher {min(others) // 60}m ago" if others else
                    f"own watcher {(now - own) // 60}m ago" if own else "no watcher")
