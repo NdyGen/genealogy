@@ -94,7 +94,7 @@ Family trees contain living people. The skills never send data about living pers
 
 ## Development
 
-The CLI lives in `plugins/genealogy-research/cli` (Python 3.12, uv): `uv run pytest`, `uv run ruff check`. Messages are English in the code with translations in `src/lineage/locales/<language>/`. Design notes are in `docs/`.
+The CLI lives in `plugins/genealogy-research/cli` (Python 3.12, uv): `uv run pytest`, `uv run ruff check`. Messages are English in the code with translations in `src/lineage/locales/<language>/`. Design notes are in `docs/`. Installed copies are cached per version: raise `version` in `plugins/genealogy-research/.claude-plugin/plugin.json` with every release, or `claude plugin update` keeps the old code.
 
 ## License
 
