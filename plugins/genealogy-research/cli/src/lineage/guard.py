@@ -428,8 +428,12 @@ def run(root: Path, state: Path, interval: int = 120, once: bool = False,
     def log(line: str) -> None:
         line = f"{dt.datetime.now():%d-%m %H:%M} {'(dry run) ' if dry_run else ''}{line}"
         print(line, flush=True)
-        with log_file.open("a", encoding="utf-8") as f:
-            f.write(line + "\n")
+        # On a full disk the guard must keep running: it is what frees the space.
+        try:
+            with log_file.open("a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except OSError:
+            pass
 
     starter = (lambda id_, account, out: True) if dry_run else research_starter(lineage, root)
     coordinator = None
@@ -440,8 +444,8 @@ def run(root: Path, state: Path, interval: int = 120, once: bool = False,
     log("guard started")
     while True:
         now = int(time.time())
-        (state / "dr-guard.alive").write_text(f"{now}\n")
         try:
+            (state / "dr-guard.alive").write_text(f"{now}\n")
             guard.run_round(now)
         except (subprocess.SubprocessError, OSError, ValueError, KeyError) as exc:
             log(f"error in round: {exc}")
