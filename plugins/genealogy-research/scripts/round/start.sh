@@ -53,6 +53,8 @@ if ! check=$(lineage config check 2>&1); then
   echo "warning: lineage config check reports problems (continuing):" >&2
   echo "$check" >&2
 fi
+# A round that fills the disk halfway cannot be merged: its scans no longer fit in the sources folder.
+lineage disk check || { echo "no round started" >&2; exit 1; }
 BRANCH="dr/$ID"
 WT="$ROOT/.worktrees/dr-$ID"
 IDL=$(lower "$ID")

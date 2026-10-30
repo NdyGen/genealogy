@@ -134,6 +134,27 @@ def send(r: requests.Request, approved: bool) -> str:
     return t("sent to {to}: {subject} ({id})", to=r.to, subject=r.subject, id=msg["Message-ID"])
 
 
+def notify(to: str, subject: str, body: str) -> None:
+    """A notice to the user's own address, without a draft: only that address needs no approval."""
+    _require_enabled()
+    own = settings.current().own_address
+    if not own or to.strip().lower() != own:
+        raise MailError(t("a notice goes only to the own address ([mail] own_address)"))
+    cfg = config()
+    msg = EmailMessage()
+    msg["From"] = formataddr((settings.current().sender_name, cfg["LINEAGE_MAIL_ADDRESS"]))
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg["Date"] = email.utils.formatdate(localtime=True)
+    msg["Message-ID"] = make_msgid(domain=cfg["LINEAGE_MAIL_ADDRESS"].split("@")[-1])
+    msg.set_content(body + "\n")
+    connection = _smtp(cfg)
+    try:
+        connection.send_message(msg)
+    finally:
+        connection.quit()
+
+
 def _set_field(path: Path, key: str, value: str) -> None:
     text = path.read_text(encoding="utf-8")
     header, _, rest = text[4:].partition("\n---\n")

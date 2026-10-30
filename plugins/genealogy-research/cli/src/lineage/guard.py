@@ -8,6 +8,9 @@ out of usage. Every round it looks at each research worktree that is not finishe
   an account with room; with every account at its limit, the round waits until the earliest reset;
 - a leader that is gone while the round is not finished, two checks in a row: resumed.
 
+It also keeps the disk from filling up (`lineage.disk`): with too little room it removes old register scans,
+and while the disk stays full it resumes nothing.
+
 It never merges, reviews or starts new rounds; that stays with the coordinator.
 """
 
@@ -24,7 +27,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
-from lineage import settings
+from lineage import disk, settings
 from lineage.limits import LIMIT, limit_reset
 
 QUIET = ("idle", "done", "blocked")
@@ -155,7 +158,7 @@ COORDINATOR_QUIET = 1800
 class Guard:
     def __init__(self, root: Path, state: Path, herdr: Herdr, starter: Callable[[str, str, Path], bool],
                  log: Callable[[str], None] = lambda line: None, coordinator: Coordinator | None = None,
-                 accounts: tuple[str, ...] | None = None):
+                 accounts: tuple[str, ...] | None = None, keeper: disk.Keeper | None = None):
         self.root = root
         self.state = state
         self.herdr = herdr
@@ -163,7 +166,9 @@ class Guard:
         self.log = log
         self.coordinator = coordinator
         self.known = accounts or project_accounts()
+        self.keeper = keeper
         self._active: set[str] = set()
+        self._room = True
         state.mkdir(parents=True, exist_ok=True)
 
     def _state_file(self, name: str) -> Path:
@@ -252,6 +257,9 @@ class Guard:
         if helpers:
             status += f" +{len(helpers)} helper{'s' if len(helpers) > 1 else ''}"
 
+        if not self._room and (leader is None or leader in QUIET):
+            mine.pop("gone", None)
+            return f"{status} waiting for disk space"
         if leader is None and self._full():
             mine.pop("gone", None)
             return f"{status} waiting for a free slot (max {self.max_rounds()})"
@@ -363,6 +371,9 @@ class Guard:
         agents = self.herdr.agent_status()
         self._active = {n for n in agents if n.startswith("dr-")}
         state = self._handled()
+        disk_status = ""
+        if self.keeper is not None:
+            disk_status, self._room = self.keeper.check(now, state.setdefault("_disk", {}))
         parts = [s for wt in sorted((self.root / ".worktrees").glob("dr-I*"))
                  if (s := self._research(wt, agents, state, now))]
         resets = self.resets()
@@ -371,8 +382,19 @@ class Guard:
             for a in self.accounts()))
         if self.coordinator is not None:
             parts.append(self._coordinate(agents, state, now))
+        if disk_status:
+            parts.append(disk_status)
         self._save(state)
         self.log(" | ".join(parts))
+
+
+def _notify(subject: str, body: str) -> None:
+    """Only to the user's own address, which needs no approval; nothing without mail in the project."""
+    from lineage import mail
+
+    project = settings.current()
+    if project.mail_enabled and project.own_address:
+        mail.notify(project.own_address, subject, body)
 
 
 class _DryCoordinator:
@@ -413,7 +435,8 @@ def run(root: Path, state: Path, interval: int = 120, once: bool = False,
     coordinator = None
     if with_coordinator:
         coordinator = _DryCoordinator() if dry_run else CoordinatorCli(lineage, root, state)
-    guard = Guard(root, state, HerdrCli(), starter, log, coordinator)
+    keeper = disk.Keeper(root, log, _notify, dry_run)
+    guard = Guard(root, state, HerdrCli(), starter, log, coordinator, keeper=keeper)
     log("guard started")
     while True:
         now = int(time.time())

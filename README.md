@@ -73,6 +73,10 @@ Each round gets a tab named after the person, with its helpers in panes next to 
 
 Background rounds cannot answer permission prompts, so they run in auto mode. `lineage round undo <ID>` stops a round that has not done anything yet.
 
+### Disk space
+
+Rounds download whole registers, and a merged round keeps its scans in the sources folder, so the disk fills up over time. `lineage disk` shows free space and what can be removed. The guard checks every loop: below 20 GB free it removes the scan cache and then whole Regionaal Archief Tilburg register pages (`<fonds>-<inventory>/NNNN.jpg`) that a round merged more than 30 days ago and that no tracked file names by path, oldest first, until 40 GB is free; `lineage rat download` fetches such a page again. Crops, scans from other archives, manual scans, HTR text and provenance files are never removed. Below 5 GB no round is started or resumed, no register is downloaded, and with mail enabled the guard mails your own address once. Without the guard, run `lineage disk prune` yourself. The limits are `[disk]` in `lineage.toml`: `low_gb`, `target_gb`, `critical_gb`, `keep_days`.
+
 Every round, with any runner, works in its own git worktree and branch (`.worktrees/dr-<ID>`, `dr/<ID>`), so nothing reaches your tree before it has been reviewed and merged.
 
 ## What is in the plugin

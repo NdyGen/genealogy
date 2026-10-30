@@ -99,5 +99,16 @@
   "{url}: HTTP {code}": "{url}: HTTP {code}",
   "{url}: {error}": "{url}: {error}",
   "Chromium does not start ({error}); set LINEAGE_CHROMIUM or run 'uv run playwright install chromium'": "Chromium start niet ({error}); stel LINEAGE_CHROMIUM in of draai 'uv run playwright install chromium'",
-  "mail is not enabled for this project; set [mail] enabled = true in lineage.toml": "mail staat voor dit project niet aan; zet [mail] enabled = true in lineage.toml"
+  "mail is not enabled for this project; set [mail] enabled = true in lineage.toml": "mail staat voor dit project niet aan; zet [mail] enabled = true in lineage.toml",
+  "disk almost full ({free:.1f} GB free); run 'lineage disk prune' first": "schijf bijna vol ({free:.1f} GB vrij); draai eerst 'lineage disk prune'",
+  "free: {free:.1f} GB (prune below {low:.0f} GB up to {target:.0f} GB; stop below {critical:.0f} GB)": "vrij: {free:.1f} GB (opruimen onder {low:.0f} GB tot {target:.0f} GB; stoppen onder {critical:.0f} GB)",
+  "removable now: {cache:.1f} GB cache, {pages:.1f} GB register pages older than {days} days": "nu op te ruimen: {cache:.1f} GB cache, {pages:.1f} GB registerpagina's ouder dan {days} dagen",
+  "scans in {path}: {size:.1f} GB": "scans in {path}: {size:.1f} GB",
+  "Disk almost full: research paused": "Schijf bijna vol: onderzoek gepauzeerd",
+  "Only {free:.1f} GB is free on the disk of {root}, also after removing old register scans. No research round is started or resumed until there is room again. 'lineage disk' shows what takes the space.": "Er is nog maar {free:.1f} GB vrij op de schijf van {root}, ook na het opruimen van oude registerscans. Er wordt geen onderzoeksronde gestart of hervat tot er weer ruimte is. 'lineage disk' laat zien wat de ruimte inneemt.",
+  "removed: {kinds} ({freed:.1f} GB); free now {free:.1f} GB": "verwijderd: {kinds} ({freed:.1f} GB); nu {free:.1f} GB vrij",
+  "a notice goes only to the own address ([mail] own_address)": "een melding gaat alleen naar het eigen adres ([mail] own_address)",
+  "would remove: {kinds} ({freed:.1f} GB); then {free:.1f} GB free": "zou verwijderen: {kinds} ({freed:.1f} GB); dan {free:.1f} GB vrij",
+  "cached scans": "scans in de cache",
+  "register pages": "registerpagina's"
 }

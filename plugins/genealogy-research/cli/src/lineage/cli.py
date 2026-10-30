@@ -15,6 +15,7 @@ from lineage import (
     browser,
     build,
     coordinates,
+    disk,
     doctor,
     edit,
     forum,
@@ -334,6 +335,9 @@ def cmd_rat_item(args: argparse.Namespace) -> int:
 
 
 def cmd_rat_download(args: argparse.Namespace) -> int:
+    if refusal := disk.too_full(_project().root):
+        print(refusal, file=sys.stderr)
+        return 2
     s = rat.item(args.inventory, _fonds(args.fonds))
     numbers = rat.parse_numbers(args.scans) if args.scans else [x.number for x in s.scans]
     for path in rat.download(s, numbers, args.dir or _project().path("output") / "scans"):
@@ -350,6 +354,29 @@ def _git_common_dir() -> Path:
             check=True,
         ).stdout.strip()
     )
+
+
+def cmd_disk(args: argparse.Namespace) -> int:
+    root = _git_common_dir().parent
+    now = time.time()
+    if args.disk_command == "check":
+        if refusal := disk.too_full(root):
+            print(refusal, file=sys.stderr)
+            return 1
+        return 0
+    if args.disk_command == "prune":
+        done = disk.prune(root, now, dry_run=args.dry_run)
+        names = {"cache": t("cached scans"), "register": t("register pages")}
+        kinds = ", ".join(f"{n} {names[kind]}" for kind, n in done.removed.items()) or t("nothing")
+        values = {"kinds": kinds, "freed": done.freed / disk.GB, "free": done.free / disk.GB}
+        if args.dry_run:
+            print(t("would remove: {kinds} ({freed:.1f} GB); then {free:.1f} GB free", **values))
+        else:
+            print(t("removed: {kinds} ({freed:.1f} GB); free now {free:.1f} GB", **values))
+        return 0
+    for line in disk.usage(root, now):
+        print(line)
+    return 0
 
 
 def cmd_guard(args: argparse.Namespace) -> int:
@@ -1431,6 +1458,17 @@ def build_parser() -> argparse.ArgumentParser:
     rat_crop.add_argument("--out", type=Path)
     rat_crop.add_argument("--scale", type=float, default=1.0)
     rat_crop.set_defaults(offline=cmd_rat_crop)
+
+    disk_parser = commands.add_parser(
+        "disk", help="free space and old scans; the guard prunes by itself ([disk] in lineage.toml)"
+    )
+    disk_commands = disk_parser.add_subparsers(dest="disk_command")
+    disk_prune = disk_commands.add_parser(
+        "prune", help="remove the scan cache and old register pages until there is room again"
+    )
+    disk_prune.add_argument("--dry-run", action="store_true", help="only count")
+    disk_commands.add_parser("check", help="exit 1 when the disk is almost full")
+    disk_parser.set_defaults(offline=cmd_disk)
 
     guard_parser = commands.add_parser(
         "guard",

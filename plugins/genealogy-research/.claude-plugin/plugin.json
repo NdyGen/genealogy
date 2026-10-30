@@ -1,7 +1,7 @@
 {
   "name": "genealogy-research",
   "displayName": "Genealogy research",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Deep research per ancestor in your own GEDCOM tree: fact checks against archive sources, records beyond baptism, marriage and burial, historical background, family completion, life stories and a life book. Includes the lineage CLI.",
   "author": {
     "name": "Andy van Dongen"

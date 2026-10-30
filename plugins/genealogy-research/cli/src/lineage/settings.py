@@ -43,6 +43,7 @@ PATHS = {
     "request_attachments": "{sources}/scans/requests",
 }
 DEFAULT_GEDCOM = "{data}/tree.ged"
+DISK = ("low_gb", "target_gb", "critical_gb", "keep_days")
 
 
 class ConfigError(ValueError):
@@ -81,6 +82,7 @@ class Config:
     sender_name: str = ""
     gramps_url: str = ""
     rat_fonds: str = ""
+    disk: dict[str, float] = field(default_factory=dict)
     accounts: dict[str, dict[str, str]] = field(default_factory=dict)
 
     def rel(self, key: str) -> Path:
@@ -155,6 +157,11 @@ def parse(text: str, file: Path) -> Config:
     paternal = _table(raw, "paternal_line", file)
     mail = _table(raw, "mail", file)
     accounts = _table(raw, "accounts", file)
+    disk = _table(raw, "disk", file)
+    if unknown := set(disk) - set(DISK):
+        raise ConfigError(f"{file}: unknown [disk] {', '.join(sorted(unknown))}; known: {', '.join(DISK)}")
+    if wrong := [k for k, v in disk.items() if isinstance(v, bool) or not isinstance(v, int | float) or v < 0]:
+        raise ConfigError(f"{file}: [disk] {', '.join(wrong)} must be a number of at least 0")
     return Config(
         root=file.parent.resolve(),
         file=file.resolve(),
@@ -173,6 +180,7 @@ def parse(text: str, file: Path) -> Config:
         sender_name=mail.get("sender_name", ""),
         gramps_url=_table(raw, "gramps", file).get("url", ""),
         rat_fonds=str(_table(raw, "rat", file).get("fonds", "")),
+        disk={k: float(v) for k, v in disk.items()},
         accounts={k: {kk: str(vv) for kk, vv in (v or {}).items()} for k, v in accounts.items()},
     )
 
@@ -209,8 +217,12 @@ def _quote(value: str) -> str:
     return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def _toml(value: str | bool) -> str:
-    return ("true" if value else "false") if isinstance(value, bool) else _quote(value)
+def _toml(value: str | bool | float) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int | float):
+        return f"{value:g}"
+    return _quote(value)
 
 
 def dump(c: Config) -> str:
@@ -239,6 +251,7 @@ def dump(c: Config) -> str:
         "mail": {"enabled": c.mail_enabled, "own_address": c.own_address, "sender_name": c.sender_name},
         "gramps": {"url": c.gramps_url},
         "rat": {"fonds": c.rat_fonds},
+        "disk": dict(c.disk),
     }
     for table, values in tables.items():
         if values := {k: v for k, v in values.items() if v}:
