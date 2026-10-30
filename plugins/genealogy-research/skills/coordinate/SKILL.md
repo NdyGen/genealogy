@@ -120,7 +120,7 @@ With `--keep` worktree, branch and tab stay.
 
 **A reading that refutes an earlier round.** If a round reads a record that an earlier round had only interpreted from the index (a case where "this concerns the children and heirs of X" was taken as the death of the wrong X), correct report, NOTE and life story of that other person and record the old interpretation in the NOTE.
 
-**Corrections to other records.** After merging, `lineage round merge` names the life stories that now lag. If the round corrected a date or name that also stood at relatives (see the NOTE lines of `lineage review` and "For the coordinator" in the report), fix that yourself in the GEDCOM, with a NOTE about the old value, and plan update rounds for the stories named.
+**Corrections to other records.** After merging, `lineage round merge` names the life stories that now lag. If the round corrected a date or name that also stood at relatives (see the NOTE lines of `lineage review` and "For the coordinator" in the report), fix that yourself in the GEDCOM, with a NOTE about the old value, and plan update rounds for the stories named. Limit every text replacement in the GEDCOM to the records you mean (`lineage.edit.record` and `block_end`), never the whole file: a phrase like "twenty years after" also occurs in other persons' NOTEs, and a blind replacement changes them (and can break words). `round merge` then reports them as outside the reach of the round.
 
 **Recording lessons.** After every review add one line at the bottom of the project's lessons file (`lineage config path lessons`): date, round, what the review found (or "nothing"), and whether it is a known pattern. Your own mistakes as coordinator belong there too.
 

@@ -46,6 +46,11 @@ Every statement that is not established (an identification, a link, a connection
 
 Summary, Stories, NOTE in the tree, the questions file, the log and the life story use **the same word** for the same statement. If a presumption becomes "probable" in the summary and "almost certain" in the life story, the family reads a stronger statement than the source carries. A reading by a helper or by Transkribus that the research lead did not reread on the scan is never proven.
 
+Counting features honestly:
+- **Name, patronymic and place are one feature.** A man with the right given name and the right patronymic in the right village is a presumption at most, however well it fits; it becomes probable only with an indication that does not come from the name (a spouse, a property, a godparent who recurs).
+- **A new reading of an uncertain name is not an identification.** If a word stays uncertain on the scan, matching it against a list of officers, clerks or neighbours is name similarity only: possible, a search lead. Two uncertain steps do not add up to a presumption.
+- **"Read myself" only for what is on the scan.** A date or a bound taken from the regest of a neighbouring record, or from an index, is cited as the regest's or the index's, also in the PAGE text. A step the record does not state (a stopover on a route, a sentence by a court when only a prison register was seen, the reason for a request) is written as a derivation.
+
 `Blog-worthy: yes` only for a proven core finding, or a story that stands without an unproven step.
 
 ## Linking without a direct record

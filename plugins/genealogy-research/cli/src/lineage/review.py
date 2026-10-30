@@ -198,6 +198,19 @@ def _famc_blocks(lines: list[str]) -> dict[str, list[str]]:
     return found
 
 
+def _link_lines(lines: list[str], fam: str) -> list[str]:
+    """The person's own NOTEs and the FAMC block of this link: an identification in the NOTE of an
+    event (a baptism, a division) reasons about that event, not about the parent link."""
+    out: list[str] = []
+    keep = False
+    for line in lines:
+        if line.startswith("1 "):
+            keep = line.startswith("1 NOTE") or line == f"1 FAMC @{fam}@"
+        if keep:
+            out.append(line)
+    return out
+
+
 def derived_links(old: str, new: str) -> list[tuple[str, str]]:
     """New FAMC links presented as proven (no QUAY 1 under the link) while a NOTE of the child reasons its
     identity from traits: that is case A of a probable link and needs the marking and a decision."""
@@ -208,7 +221,7 @@ def derived_links(old: str, new: str) -> list[tuple[str, str]]:
         for fam, block in _famc_blocks(lines).items():
             if fam in old_blocks or "3 QUAY 1" in block:
                 continue
-            sentences = _SENTENCE.split(_joined_notes(lines))
+            sentences = _SENTENCE.split(_joined_notes(_link_lines(lines, fam)))
             if any(_DERIVED.search(s) and not _PARENTS_NAMED.search(s) for s in sentences):
                 found.append((xref, fam))
     return found
