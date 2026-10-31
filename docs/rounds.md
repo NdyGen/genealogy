@@ -126,9 +126,10 @@ Placement in the app, chosen over making the round a sub-agent of the coordinato
   the coordinator's prompt. Instead they copy only the `herdr.space` label of the terminal that starts
   them: without `herdr.tab` the app opens a new tab, so each round, the coordinator and the guard get their
   own tab in the coordinator's space, as under herdr. The guard copies the space from the coordinator when
-  it is started and passes it on to rounds it resumes. The tab is named through the `where` label
-  (`<space> / <title>`), which the app takes as the tab's title: `<ID> <person>` for a round, `coordinator`
-  and `guard`; without it the app numbers the tab.
+  it is started and passes it on to rounds it resumes. The app keeps its layout in the hc document
+  `herdr-app` (spaces, their tabs and the terminals in them) and numbers a tab without a name, so the runner
+  names the new tab there (`doc.set`, retried on a version conflict): `<ID> <person>` for a round,
+  `coordinator` and `guard`. A tab someone already named keeps its name.
 - A helper is a child of its leader (`--parent $HC_TERMINAL_ID --no-notify`): it shows as the leader's
   sub-agent, ends when the leader is stopped, and hc types no notes into the leader while `helper.sh` already
   waits for it.

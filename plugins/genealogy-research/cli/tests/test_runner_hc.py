@@ -106,7 +106,7 @@ def test_leader_gets_its_own_tab_in_the_callers_space_with_its_account(core):
     env, base = core
     (base / "bin" / "trust").write_text("")
     caller = json.loads(hc(env, "run", "--bg", "--name", "me", "--no-parent", "--label", "herdr.space=S1",
-                           "--label", "herdr.tab=T1", "--label", "where=Family / main", "sleep", "300").stdout)["address"]
+                           "--label", "herdr.tab=T1", "--label", "where=x", "sleep", "300").stdout)["address"]
     r = runner(env, base, """
 runner_start_leader "$WT" dr-i7 "Jan Jansen" opus work "Use the deep-research skill for person I7."
 echo "$RUNNER_WHERE"
@@ -119,7 +119,7 @@ runner_list
     t = terminal(env, address)
     assert t["name"] == "dr-i7" and t["parent"] is None and t["cwd"] == str(base / "wt")
     assert t["labels"] == {
-        "herdr.space": "S1", "where": "Family / I7 Jan Jansen", "lineage.project": str(base / "repo.git"),
+        "herdr.space": "S1", "lineage.project": str(base / "repo.git"),
         "lineage.role": "leader", "lineage.round": "I7", "lineage.person": "Jan Jansen"}
     cfg, model, args = calls(base)[0]
     assert cfg == "/cfg/work" and model == "unset"
@@ -210,3 +210,26 @@ runner_guard_alive && echo still || echo gone
 """)
     assert r.returncode == 0, r.stderr
     assert r.stdout.split() == ["none", "running", "gone"]
+
+
+def test_name_tab_names_only_the_terminals_own_unnamed_tab(core):
+    env, base = core
+    addr = json.loads(hc(env, "run", "--bg", "--no-parent", "sleep", "300").stdout)["address"]
+
+    def tab(tab_id, name, *terms):
+        return {"id": tab_id, "name": name, "root": {"type": "row", "children": [
+            {"type": "block", "content": {"terminal": t}} for t in terms]}}
+
+    layout = {"spaces": [{"id": "S1", "name": "Family", "tabs": [
+        tab("T1", "coordinator", "t99"), tab("T2", "", "t98", addr), tab("T3", "", addr)]}]}
+
+    def rpc(method, params):
+        req = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+        return json.loads(subprocess.run(["hc", "connect"], input=req + "\n", env=env, capture_output=True,
+                                         text=True, check=True).stdout.splitlines()[0])["result"]
+
+    rpc("doc.set", {"name": "herdr-app", "value": layout, "version": 0})
+    r = runner(env, base, f'_hc_name_tab {addr} "I7 Jan Jansen"; _hc_name_tab {addr} other')
+    assert r.returncode == 0, r.stderr
+    names = [t["name"] for t in rpc("doc.get", {"name": "herdr-app"})["value"]["spaces"][0]["tabs"]]
+    assert names == ["coordinator", "", "I7 Jan Jansen"]
