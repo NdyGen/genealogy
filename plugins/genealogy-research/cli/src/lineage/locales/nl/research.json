@@ -24,6 +24,7 @@
   "the report does not mention the account '{account}' (output/account) in the new text": "het rapport noemt het account '{account}' (uitvoer/account) niet in de nieuwe tekst",
   "queue: {pid} added, but the report does not mention it": "wachtrij: {pid} toegevoegd, maar het rapport noemt het niet",
   "{xref} changed outside the reach of {pid}: does the report explain that?": "{xref} gewijzigd buiten het bereik van {pid}: verklaart het rapport dat?",
+  "{xref}: program line '{line}' removed": "{xref}: programmaregel '{line}' verwijderd",
   "{xref}: '{line}' vanished without a NOTE naming the old value": "{xref}: '{line}' verdwenen zonder dat een NOTE de oude waarde noemt",
   "{xref} still has '{event}', a value this round corrected elsewhere": "{xref} heeft nog '{event}', een waarde die deze ronde elders corrigeerde",
   "{xref}: new FAMC @{fam}@ without QUAY 1, while a NOTE derives the identity: proven, or probable (case A, mark it and ask the user)?": "{xref}: nieuwe FAMC @{fam}@ zonder QUAY 1, terwijl een NOTE de identiteit afleidt: bewezen, of waarschijnlijk (geval A, markeer het en vraag de gebruiker)?",

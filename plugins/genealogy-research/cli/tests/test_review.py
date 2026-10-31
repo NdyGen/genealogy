@@ -126,6 +126,14 @@ def test_new_link_with_derived_identity_without_quay_1():
     assert review.derived_links(old, event) == []
 
 
+def test_removed_program_line():
+    old = ged("0 @I1@ INDI", "1 _UPD 12 MAY 2021", "1 NAME John /Faber/")
+    new = ged("0 @I1@ INDI", "1 NAME John /Faber/", "1 NOTE Rewritten.")
+    assert review.vanished_metadata(old, new) == [("I1", "1 _UPD 12 MAY 2021")]
+    assert review.vanished_metadata(old, old) == []
+    assert any("_UPD" in w for w in check(old, new).warnings)
+
+
 def test_helper_agent_quote_in_a_life_story():
     report = ('Read myself: "A house, barn and yard". In the margin it says "as father and heir '
               'of his deceased child" (read only by the helper agent).')

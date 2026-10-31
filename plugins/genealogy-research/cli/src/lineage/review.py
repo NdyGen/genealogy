@@ -151,6 +151,14 @@ def vanished_values(old: str, new: str) -> list[tuple[str, str]]:
     return found
 
 
+def vanished_metadata(old: str, new: str) -> list[tuple[str, str]]:
+    """Level-1 program tags (_UPD, _UID, ...) dropped from a record that still exists: rewriting a record must
+    not lose what the exporting program put there."""
+    before, after = records(old), records(new)
+    return [(xref, line) for xref, lines in before.items() if xref in after
+            for line in lines if line.startswith("1 _") and line not in after[xref]]
+
+
 def _events(lines: list[str]) -> list[tuple[str, str, str]]:
     """(tag or TYPE, DATE, PLAC) per level-1 event."""
     found, tag, date, plac = [], "", "", ""
@@ -349,6 +357,8 @@ def check(
         u.warnings.append(t("{xref} changed outside the reach of {pid}: does the report explain that?", xref=x, pid=pid))
     for x, line in vanished_values(ged_old, ged_new):
         u.warnings.append(t("{xref}: '{line}' vanished without a NOTE naming the old value", xref=x, line=line))
+    for x, line in vanished_metadata(ged_old, ged_new):
+        u.warnings.append(t("{xref}: program line '{line}' removed", xref=x, line=line))
     for x, ev in old_values_elsewhere(ged_old, ged_new):
         u.warnings.append(t("{xref} still has '{event}', a value this round corrected elsewhere", xref=x, event=ev))
     for paragraph in re.split(r"\n\s*\n", report_new):
