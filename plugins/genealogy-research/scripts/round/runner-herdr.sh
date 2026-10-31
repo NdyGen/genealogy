@@ -58,7 +58,7 @@ print('yes' if a.get('agent_status') == 'working' or (a.get('tokens') or {}).get
     [ "$started" = yes ] && break
   done
   [ "$started" = yes ] || echo "WARNING: $name did not pick up the brief after three attempts" >&2
-  RUNNER_TAB=$(cat "$out/runner-tab")
+  RUNNER_WHERE="tab $(cat "$out/runner-tab")"
   return 0
 }
 
@@ -206,4 +206,42 @@ runner_after_finish() {
     echo "tab $tab closes in 30 seconds"
   fi
   return 0
+}
+
+# Own tab "coordinator", agent "coordinator"; the tab id is kept in <git-common-dir>/dr-coordinator.tab, so
+# the guard can close it.
+runner_start_coordinator() {
+  local main=$1 account=$2 prompt=$3 tab_json pane name=coordinator
+  [ "${HERDR_ENV:-}" = 1 ] || { echo "not in Herdr" >&2; return 2; }
+  if [ -s "$COMMON/dr-coordinator.tab" ]; then
+    herdr agent send-keys "$name" ctrl+c ctrl+c >/dev/null 2>&1 || true
+    herdr tab close "$(cat "$COMMON/dr-coordinator.tab")" >/dev/null 2>&1 || true
+    sleep 2
+  fi
+  tab_json=$(herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd "$main" --label "coordinator" --no-focus)
+  echo "$tab_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["result"]["tab"]["tab_id"])' > "$COMMON/dr-coordinator.tab"
+  pane=$(echo "$tab_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["result"]["root_pane"]["pane_id"])')
+  herdr pane rename "$pane" "$name" >/dev/null
+  sleep 2
+  herdr pane run "$pane" "$(account_env_snippet "$account")" >/dev/null
+  sleep 1
+  herdr agent start "$name" --kind claude --pane "$pane" --timeout 60000 -- --model opus --permission-mode auto >/dev/null 2>&1 || true
+  _accept_trust "$name"
+  herdr agent wait "$name" --until idle --timeout 60000 >/dev/null 2>&1 || true
+  herdr agent prompt "$name" "$prompt" --wait --timeout 30000 >/dev/null 2>&1 || true
+  RUNNER_WHERE="tab $(cat "$COMMON/dr-coordinator.tab")"
+}
+
+# runner_start_guard <main> <command...>: the guard in its own tab "guard".
+runner_start_guard() {
+  local main=$1 tab_json pane cmd="" arg
+  shift
+  [ "${HERDR_ENV:-}" = 1 ] || { echo "not in Herdr" >&2; return 2; }
+  for arg in "$@"; do cmd="$cmd '$arg'"; done
+  tab_json=$(herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd "$main" --label "guard" --no-focus)
+  pane=$(echo "$tab_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["result"]["root_pane"]["pane_id"])')
+  herdr pane rename "$pane" guard >/dev/null
+  sleep 1
+  herdr pane run "$pane" "cd '$main' &&$cmd" >/dev/null
+  RUNNER_WHERE="tab $(echo "$tab_json" | python3 -c 'import json,sys;print(json.load(sys.stdin)["result"]["tab"]["tab_id"])')"
 }

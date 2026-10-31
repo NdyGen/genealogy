@@ -14,7 +14,7 @@ from pathlib import Path
 
 FILE = "lineage.toml"
 LANGUAGES = ("en", "nl", "de", "fr")
-RUNNERS = ("auto", "herdr", "headless", "inline")
+RUNNERS = ("auto", "hc", "herdr", "headless", "inline")
 # A path may refer to an earlier one as {name}; the order below is the resolution order.
 PATHS = {
     "data": "data",

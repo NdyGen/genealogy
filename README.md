@@ -41,11 +41,12 @@ The runner decides where research rounds run. It is `runner` in `lineage.toml`, 
 | runner | rounds | what you start |
 |---|---|---|
 | `inline` | one at a time, in your own Claude session | nothing extra |
-| `herdr` | several in parallel, each in its own Herdr tab | Herdr, a coordinator session and the guard |
+| `hc` | several in parallel, as terminals in the Herdr app (herdr-core) | the Herdr app, a coordinator session and the guard |
+| `herdr` | several in parallel, each in its own tab of the older Herdr CLI | Herdr, a coordinator session and the guard |
 | `headless` | several in parallel, as background `claude -p` processes | a coordinator session |
-| `auto` (default) | `herdr` when Claude runs inside Herdr, otherwise `inline` | |
+| `auto` (default) | `hc` when Claude runs in a Herdr app terminal, `herdr` inside the Herdr CLI, otherwise `inline` | |
 
-Change it with `lineage init --update --runner herdr` (or edit `lineage.toml`). `lineage config runner` shows which runner is used right now; `DR_RUNNER=inline lineage round start <ID>` overrides it for one command.
+Change it with `lineage init --update --runner hc` (or edit `lineage.toml`). `lineage config runner` shows which runner is used right now; `DR_RUNNER=inline lineage round start <ID>` overrides it for one command.
 
 ### inline
 
@@ -55,7 +56,18 @@ Change it with `lineage init --update --runner herdr` (or edit `lineage.toml`). 
 
 Nothing runs in the background, so nothing needs to be stopped.
 
+### hc (the Herdr app)
+
+1. **Open the project in the Herdr app** and start Claude in a terminal there: `cd <project> && claude`. In a Herdr app terminal (`HC_TERMINAL_ID` is set) the `auto` runner becomes `hc`.
+2. **Start the coordinator** in that session: `/genealogy-research:coordinate`.
+3. **Start the guard:** `lineage round start-guard`. It runs as the terminal "guard" and does what the guard under `herdr` below does.
+4. **Set the limits** as under `herdr` below.
+
+Every round is a terminal `dr-<id>` in the same space and tab as the session that started it (the coordinator's, or the guard's when it resumes a round); its helpers are child terminals of the round, so they show as its sub-agents and end with it. `hc ls` lists them; `hc attach dr-<id>` takes one over (ctrl+\\ detaches). To stop: end the coordinator session and `hc kill guard`.
+
 ### herdr
+
+The older Herdr CLI; use `hc` with the Herdr app instead where you can.
 
 1. **Start Herdr** in a terminal: `herdr` (it starts or reattaches the persistent session).
 2. **Open the project in a Herdr pane** and start Claude there: `cd <project> && claude`. Inside Herdr the `auto` runner becomes `herdr`.
@@ -69,7 +81,7 @@ Each round gets a tab named after the person, with its helpers in panes next to 
 
 1. Set `runner = "headless"` in `lineage.toml`.
 2. Start rounds with `lineage round start <ID>`, or ask Claude for "deep research on I4". Each round runs as a background `claude -p` process in its worktree; its process ID and log are in `.worktrees/dr-<ID>/output/leader.pid` and `leader.log` (`tail -f` to follow it).
-3. For several rounds, open a Claude session in the project and run `/genealogy-research:coordinate`: it watches, reviews, merges and starts the next ones. The guard is not available without Herdr, so a round that hits a usage limit is resumed by the coordinator or by hand (`lineage round start <ID> --resume`).
+3. For several rounds, open a Claude session in the project and run `/genealogy-research:coordinate`: it watches, reviews, merges and starts the next ones. The guard needs `hc` or `herdr`, so a round that hits a usage limit is resumed by the coordinator or by hand (`lineage round start <ID> --resume`).
 
 Background rounds cannot answer permission prompts, so they run in auto mode. `lineage round undo <ID>` stops a round that has not done anything yet.
 

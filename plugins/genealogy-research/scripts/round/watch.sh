@@ -26,7 +26,7 @@ load_runner
 STATE="$COMMON/dr-watch.state"
 [ -f "$STATE" ] || { [ -f "$COMMON/dr-wacht.state" ] && cp "$COMMON/dr-wacht.state" "$STATE" || : > "$STATE"; }
 # One watcher at a time, or the mailbox is read twice. A pidfile instead of flock: a lock fd would stay open in
-# long-running child processes (herdr, start.sh). A lock of a process that no longer exists (or is no longer a
+# long-running child processes (herdr, hc, start.sh). A lock of a process that no longer exists (or is no longer a
 # watcher) is taken over.
 LOCK="$COMMON/dr-watch.lock"
 for attempt in 1 2 3; do
@@ -115,11 +115,11 @@ switch_on_limit() {
 
 while :; do
   ALLOWED=$(allowed_accounts)
-  # Heartbeat per pane: the guard starts its own coordinator when no watcher has beaten for half an hour,
-  # and closes that auto-coordinator again while another session's watcher beats.
+  # Heartbeat per pane (hc: per terminal): the guard starts its own coordinator when no watcher has beaten
+  # for half an hour, and closes that auto-coordinator again while another session's watcher beats.
   mkdir -p "$COMMON/dr-coordinator.alive.d"
-  date +%s > "$COMMON/dr-coordinator.alive.d/$(echo "${HERDR_PANE_ID:-no-pane}" | tr : _)"
-  # Without an agent list (herdr not answering) every round would look agent-less: skip this check.
+  date +%s > "$COMMON/dr-coordinator.alive.d/$(echo "${HC_TERMINAL_ID:-${HERDR_PANE_ID:-no-pane}}" | tr :/ __)"
+  # Without an agent list (the runner not answering) every round would look agent-less: skip this check.
   agents=$(runner_list) || { sleep "$INTERVAL"; continue; }
   notices=$(ROOT="$ROOT" PREVIOUS_QUIET="$previous_quiet" OUT="$OUT" AGENTS="$agents" python3 - <<'PY'
 import os

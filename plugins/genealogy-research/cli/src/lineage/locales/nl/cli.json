@@ -90,6 +90,8 @@
   "missing: install git (research rounds are git branches)": "ontbreekt: installeer git (onderzoeksrondes zijn git-branches)",
   "missing; only 'lineage scan' and the forum need it: lineage doctor --install-browser": "ontbreekt; alleen 'lineage scan' en het forum hebben het nodig: lineage doctor --install-browser",
   "missing; only the herdr runner needs it": "ontbreekt; alleen de herdr-runner heeft het nodig",
+  "missing; only the hc runner (Herdr app) needs it": "ontbreekt; alleen de hc-runner (Herdr-app) heeft het nodig",
+  "the guard needs the herdr or hc runner, not '{runner}' (use --runner)": "de bewaker heeft de herdr- of hc-runner nodig, niet '{runner}' (gebruik --runner)",
   "missing; 'lineage tree' then writes DOT without SVG": "ontbreekt; 'lineage tree' schrijft dan DOT zonder SVG",
   "present": "aanwezig",
   "missing; only 'lineage gramps sync' needs it (apt install python3-gi)": "ontbreekt; alleen 'lineage gramps sync' heeft het nodig (apt install python3-gi)",
