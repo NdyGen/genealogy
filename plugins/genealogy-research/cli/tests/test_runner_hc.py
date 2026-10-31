@@ -102,7 +102,7 @@ def calls(base):
     return [line.split("\t") for line in (base / "bin" / "calls").read_text().splitlines()]
 
 
-def test_leader_lands_in_the_callers_space_with_its_account(core):
+def test_leader_gets_its_own_tab_in_the_callers_space_with_its_account(core):
     env, base = core
     (base / "bin" / "trust").write_text("")
     caller = json.loads(hc(env, "run", "--bg", "--name", "me", "--no-parent", "--label", "herdr.space=S1",
@@ -119,7 +119,7 @@ runner_list
     t = terminal(env, address)
     assert t["name"] == "dr-i7" and t["parent"] is None and t["cwd"] == str(base / "wt")
     assert t["labels"] == {
-        "herdr.space": "S1", "herdr.tab": "T1", "lineage.project": str(base / "repo.git"),
+        "herdr.space": "S1", "lineage.project": str(base / "repo.git"),
         "lineage.role": "leader", "lineage.round": "I7", "lineage.person": "Jan Jansen"}
     cfg, model, args = calls(base)[0]
     assert cfg == "/cfg/work" and model == "unset"

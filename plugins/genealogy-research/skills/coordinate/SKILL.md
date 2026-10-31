@@ -43,7 +43,7 @@ lineage round start <ID> [--model opus|sonnet]
 The script:
 1. sets the person in progress in the queue and commits that in `main`;
 2. creates the worktree `.worktrees/dr-<ID>` on branch `dr/<ID>`;
-3. starts the research lead through the runner (hc: a terminal `dr-<id>` in your space and tab of the Herdr app, labelled `lineage.round=<ID>`, its helpers as its child terminals; herdr: its own tab named after the person, the tab ID in `<output>/runner-tab` of the worktree; headless: a background process, `<output>/leader.pid` and `leader.log`);
+3. starts the research lead through the runner (hc: a terminal `dr-<id>` in its own tab in your space of the Herdr app, labelled `lineage.round=<ID>`, its helpers as its child terminals; herdr: its own tab named after the person, the tab ID in `<output>/runner-tab` of the worktree; headless: a background process, `<output>/leader.pid` and `leader.log`);
 4. gives it the brief.
 
 `<output>` is `lineage config path output` inside the worktree. The lead starts its helper agents itself with `lineage round helper` (see "Division of labour" in the `deep-research` skill). At the end the lead runs `lineage round finish`, which writes `<output>/DONE` in the worktree and closes the tab (hc: the terminal). The report, the commits and the helper results (`<output>/helpers/`) stay in the worktree for your review.

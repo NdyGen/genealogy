@@ -122,9 +122,11 @@ Placement in the app, chosen over making the round a sub-agent of the coordinato
 - Leaders, the coordinator and the guard have no hc parent (`--no-parent`). A child ends with its parent,
   and the guard restarts coordinators (usage limit, another session took over), which would end every round
   with it; `--outlive-parent` would leave a dangling parent and hc would type notes about every round into
-  the coordinator's prompt. Instead they copy the `herdr.space`/`herdr.tab` labels of the terminal that
-  starts them, so the round shows in the coordinator's space and tab. The guard copies them from the
-  coordinator when it is started and passes them on to rounds it resumes.
+  the coordinator's prompt. Instead they copy only the `herdr.space` label of the terminal that starts
+  them: without `herdr.tab` the app opens a new tab, so each round, the coordinator and the guard get their
+  own tab in the coordinator's space, as under herdr. The guard copies the space from the coordinator when
+  it is started and passes it on to rounds it resumes. The app numbers these tabs; the terminal name
+  (`dr-<id>`) identifies the round.
 - A helper is a child of its leader (`--parent $HC_TERMINAL_ID --no-notify`): it shows as the leader's
   sub-agent, ends when the leader is stopped, and hc types no notes into the leader while `helper.sh` already
   waits for it.

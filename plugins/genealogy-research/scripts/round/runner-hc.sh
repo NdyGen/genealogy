@@ -6,8 +6,8 @@
 # guard.
 #
 # Placement in the app: leaders, the coordinator and the guard get no hc parent (a parent's end would end
-# them, and the guard restarts coordinators) but copy the herdr.space/herdr.tab labels of the terminal that
-# starts them, so the whole round lands in the coordinator's space. A helper is a child of its leader: it
+# them, and the guard restarts coordinators) but copy only the herdr.space label of the terminal that
+# starts them: each gets its own tab in the coordinator's space, as under herdr. A helper is a child of its leader: it
 # ends with the leader, shows as its sub-agent, and --no-notify keeps hc from typing notes into the
 # leader's prompt while helper.sh already waits for it.
 
@@ -40,13 +40,13 @@ s = s.get("state") if isinstance(s, dict) else s
 print("gone" if t.get("state") == "finished" else {None: "working", "error": "idle"}.get(s, s))' || echo gone
 }
 
-# The herdr.* labels of the terminal this runs in, one key=value per line.
+# The herdr.space label of the terminal this runs in. Without herdr.tab the app opens a new tab.
 _hc_placement() {
   [ -n "${HC_TERMINAL_ID:-}" ] || return 0
   hc get "$HC_TERMINAL_ID" --json 2>/dev/null | python3 -c '
 import json, sys
 for k, v in json.load(sys.stdin).get("labels", {}).items():
-    if k.startswith("herdr."):
+    if k == "herdr.space":
         print(f"{k}={v}")' || true
 }
 
