@@ -18,7 +18,7 @@ If `lineage.toml` already exists, read it first (`lineage config show`) and use 
 
 ## 1. Requirements
 
-Run `lineage doctor`. It reports uv, git, Python, Chromium (only needed for `lineage scan`), Herdr and a few optional tools. If something required is missing, give the install instruction it prints and stop. Offer to install Chromium (`lineage doctor --install-browser`) only when the user wants to fetch scans.
+Run `lineage doctor`. It reports uv, git, Python, Chromium (only needed for `lineage scan`), hc, Herdr and a few optional tools. If something required is missing, give the install instruction it prints and stop. Offer to install Chromium (`lineage doctor --install-browser`) only when the user wants to fetch scans.
 
 ## 2. Output language
 
@@ -90,12 +90,13 @@ The research is oriented towards one or more target persons, usually the user (a
 
 ## 5. Runner
 
-Default: `${user_config.runner}`. With `auto`, lineage uses Herdr when it runs inside Herdr and `inline` otherwise. Explain briefly:
+Default: `${user_config.runner}`. With `auto`, lineage uses `hc` in a Herdr app terminal, `herdr` inside the Herdr CLI and `inline` otherwise. Explain briefly:
 - `inline`: one research round per Claude session; helper agents run as subagents. Simplest, no extra software. The right choice for most people.
-- `herdr`: rounds and helpers in their own Herdr tabs and panes, several rounds in parallel, a coordinator can merge them.
+- `hc`: rounds and helpers as terminals in the Herdr app (herdr-core), several rounds in parallel, a coordinator can merge them.
+- `herdr`: the same with the older Herdr CLI, in its own tabs and panes.
 - `headless`: parallel rounds as background `claude -p` processes, without Herdr. Permission prompts cannot be answered there.
 
-Ask about Claude accounts only for `herdr` or `headless`: a list of names, each with an optional `CLAUDE_CONFIG_DIR`.
+Ask about Claude accounts only for `hc`, `herdr` or `headless`: a list of names, each with an optional `CLAUDE_CONFIG_DIR`.
 
 ## 6. Optional services
 

@@ -144,6 +144,7 @@ def test_config_relative_path_value_runner_accounts(tmp_path, monkeypatch, capsy
     monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("DR_RUNNER", raising=False)
     monkeypatch.delenv("HERDR_ENV", raising=False)
+    monkeypatch.delenv("HC_TERMINAL_ID", raising=False)
     (tmp_path / "lineage.toml").write_text(
         'name = "Test"\nlanguage = "nl"\nline_root = "I5"\n[accounts.work]\nconfig_dir = "/cfg/w"\n'
         "[accounts.private]\n"
@@ -164,6 +165,10 @@ def test_config_relative_path_value_runner_accounts(tmp_path, monkeypatch, capsy
     monkeypatch.setattr("shutil.which", lambda name: "/bin/herdr")
     assert main(["config", "runner"]) == 0
     assert capsys.readouterr().out.strip() == "herdr"
+    # Inside an hc terminal (the Herdr app) hc wins, even where an old Herdr session is still around.
+    monkeypatch.setenv("HC_TERMINAL_ID", "t7")
+    assert main(["config", "runner"]) == 0
+    assert capsys.readouterr().out.strip() == "hc"
     monkeypatch.setenv("DR_RUNNER", "headless")
     assert main(["config", "runner"]) == 0
     assert capsys.readouterr().out.strip() == "headless"
@@ -246,3 +251,29 @@ def test_file_may_follow_the_command(capsys):
     assert main(["person", "I1", "--file", str(FIXTURE)]) == 0
     assert main(["validate", f"--file={FIXTURE}"]) == 0
     assert "John Miller" in capsys.readouterr().out
+
+
+def test_runner_hc_is_a_valid_setting(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("DR_RUNNER", raising=False)
+    (tmp_path / "lineage.toml").write_text('name = "T"\nrunner = "hc"\n')
+    assert main(["config", "runner"]) == 0
+    assert capsys.readouterr().out.strip() == "hc"
+
+
+def test_guard_refuses_a_runner_without_terminals(tmp_path, monkeypatch, capsys):
+    import subprocess
+
+    monkeypatch.chdir(tmp_path)
+    subprocess.run(["git", "init", "-q"], check=True)
+    monkeypatch.setenv("DR_RUNNER", "inline")
+    (tmp_path / "lineage.toml").write_text('name = "T"\n')
+    assert main(["guard", "--once", "--dry-run"]) == 2
+    assert "herdr or hc" in capsys.readouterr().err
+
+
+def test_doctor_reports_hc(monkeypatch):
+    monkeypatch.setattr(doctor, "_version", lambda *c: "hc 0.1.15" if c[0] == "hc" else None)
+    found = {c.name: c for c in doctor.checks()}
+    assert found["hc"].ok and found["hc"].detail == "hc 0.1.15" and not found["hc"].required
+    assert not found["herdr"].ok

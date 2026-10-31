@@ -94,7 +94,7 @@ def test_a_full_disk_pauses_resuming_and_tells_the_user_once(repo):
     sent, lines = [], []
     keeper = disk.Keeper(repo, lines.append, notify=lambda s, b: sent.append(s), free=lambda _: 0,
                          cache=repo / "cache")
-    b = guard.Guard(repo, state=repo / "state", herdr=w, starter=w.resume_stub, log=lines.append,
+    b = guard.Guard(repo, state=repo / "state", runner=w, starter=w.resume_stub, log=lines.append,
                     accounts=("work", "personal"), keeper=keeper)
     for minute in (0, 2, 4):
         b.run_round(NOW + minute * 60)

@@ -76,7 +76,9 @@ def _gi() -> bool:
 
 
 def checks() -> list[Check]:
-    uv, git, herdr, dot = (_version(c, "--version") for c in ("uv", "git", "herdr", "dot"))
+    uv, git, hc, herdr, dot = (
+        _version(c, "--version") for c in ("uv", "git", "hc", "herdr", "dot")
+    )
     chromium = browser.chromium()
     gi = _gi()
     py = sys.version_info
@@ -103,6 +105,7 @@ def checks() -> list[Check]:
                 "missing; only 'lineage scan' and the forum need it: lineage doctor --install-browser"
             ),
         ),
+        Check("hc", bool(hc), False, hc or t("missing; only the hc runner (Herdr app) needs it")),
         Check("herdr", bool(herdr), False, herdr or t("missing; only the herdr runner needs it")),
         Check(
             "graphviz",

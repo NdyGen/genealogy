@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Has a helper agent (cheaper model) carry out one brief, in a pane next to the round's leader (herdr) or in
-# the foreground (headless). Waits until it is done, closes the pane and prints the result path.
+# Has a helper agent (cheaper model) carry out one brief, in a pane next to the round's leader (herdr), as a
+# child terminal of the leader (hc) or in the foreground (headless). Waits until it is done, closes the pane
+# or terminal and prints the result path.
 # Usage: lineage round helper <role> <path/NN-name.brief.md>
 #   role: archive-searcher | scan-reader | background | life-story  (agent dr-<role>, from the plugin or from
 #         the project's own .claude/agents/dr-<role>.md, which wins)
@@ -51,7 +52,7 @@ if [ "$RUNNER" = inline ]; then
   echo "no helper panes in this runner: use the Agent tool with subagent_type $AGENT and the contents of $BRIEF" >&2
   exit 4
 fi
-# In a subshell with errexit, so a failing herdr call stops the helper as it did before; `fn || exit` would
+# In a subshell with errexit, so a failing herdr or hc call stops the helper as it did before; `fn || exit` would
 # switch errexit off inside the function.
 set +e
 (set -e; runner_start_helper "$WT" "$NAME" "$AGENT" "$PROMPT" "$RESULT")

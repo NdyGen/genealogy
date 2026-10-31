@@ -382,6 +382,11 @@ def cmd_disk(args: argparse.Namespace) -> int:
 def cmd_guard(args: argparse.Namespace) -> int:
     common = _git_common_dir()
     root = common.parent
+    runner = args.runner or resolve_runner(settings.current())
+    if runner not in guard.RUNNERS:
+        print(t("the guard needs the herdr or hc runner, not '{runner}' (use --runner)", runner=runner),
+              file=sys.stderr)
+        return 2
     guard.run(
         root,
         common,
@@ -389,6 +394,7 @@ def cmd_guard(args: argparse.Namespace) -> int:
         args.once,
         args.dry_run,
         args.coordinator,
+        runner=runner,
     )
     return 0
 
@@ -867,6 +873,8 @@ def resolve_runner(project: settings.Config) -> str:
     runner = os.environ.get("DR_RUNNER") or project.runner
     if runner != "auto":
         return runner
+    if os.environ.get("HC_TERMINAL_ID") and shutil.which("hc"):
+        return "hc"
     return "herdr" if os.environ.get("HERDR_ENV") == "1" and shutil.which("herdr") else "inline"
 
 
@@ -1472,7 +1480,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     guard_parser = commands.add_parser(
         "guard",
-        help="keeps running deep-research rounds going across usage limits (own Herdr tab)",
+        help="keeps running deep-research rounds going across usage limits (own terminal)",
     )
     guard_parser.add_argument("--interval", type=int, default=120, help="seconds between rounds")
     guard_parser.add_argument("--once", action="store_true", help="one round, then stop")
@@ -1483,6 +1491,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--coordinator",
         action="store_true",
         help="also watch a coordinator session and start it if needed (lineage round start-coordinator)",
+    )
+    guard_parser.add_argument(
+        "--runner",
+        choices=guard.RUNNERS,
+        help="where the rounds run (default: lineage config runner)",
     )
     guard_parser.set_defaults(offline=cmd_guard)
 

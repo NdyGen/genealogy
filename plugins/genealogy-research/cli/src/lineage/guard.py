@@ -1,6 +1,6 @@
 """Keeps the running deep-research rounds going across usage limits, independently of any Claude session.
 
-A plain loop in its own Herdr tab (`lineage guard`), so it keeps working when the coordinator itself is
+A plain loop in its own terminal (`lineage guard`, a Herdr tab or an hc terminal), so it keeps working when the coordinator itself is
 out of usage. Every round it looks at each research worktree that is not finished:
 
 - a leader or helper that stopped on a usage-limit message: the reset is recorded for that leader's account
@@ -60,30 +60,122 @@ def choose_account(
     return free[0] if free else None
 
 
-class Herdr(Protocol):
+class Runner(Protocol):
+    """What the guard needs from the runner that hosts the rounds (herdr or hc)."""
+
     def agent_status(self) -> dict[str, str]: ...
     def agent_panes(self) -> dict[str, str]: ...
     def live_panes(self) -> set[str]: ...
     def screen(self, name: str) -> str: ...
+    def prompt(self, name: str, text: str) -> bool: ...
+    def close_coordinator(self, state: Path) -> bool: ...
+
+
+def heartbeat_key(pane: str) -> str:
+    """File name of a pane's heartbeat, as `lineage round watch` writes it."""
+    return pane.replace(":", "_").replace("/", "_")
 
 
 class HerdrCli:
-    def agent_status(self) -> dict[str, str]:
+    def _agents(self) -> list[dict]:
         out = subprocess.run(["herdr", "agent", "list"], capture_output=True, text=True, check=True).stdout
-        return {a["name"]: a["agent_status"] for a in json.loads(out)["result"]["agents"] if a.get("name")}
+        return json.loads(out)["result"]["agents"]
+
+    def agent_status(self) -> dict[str, str]:
+        return {a["name"]: a["agent_status"] for a in self._agents() if a.get("name")}
 
     def agent_panes(self) -> dict[str, str]:
-        out = subprocess.run(["herdr", "agent", "list"], capture_output=True, text=True, check=True).stdout
-        return {a["name"]: a["pane_id"] for a in json.loads(out)["result"]["agents"] if a.get("name")}
+        return {a["name"]: a["pane_id"] for a in self._agents() if a.get("name")}
 
     def live_panes(self) -> set[str]:
-        out = subprocess.run(["herdr", "agent", "list"], capture_output=True, text=True, check=True).stdout
-        return {a["pane_id"] for a in json.loads(out)["result"]["agents"]}
+        return {a["pane_id"] for a in self._agents()}
 
     def screen(self, name: str) -> str:
         return subprocess.run(
             ["herdr", "agent", "read", name, "--source", "visible"], capture_output=True, text=True
         ).stdout
+
+    def prompt(self, name: str, text: str) -> bool:
+        return subprocess.run(["herdr", "agent", "prompt", name, text],
+                              capture_output=True, text=True).returncode == 0
+
+    def close_coordinator(self, state: Path) -> bool:
+        tab = state / "dr-coordinator.tab"
+        if not tab.exists():
+            return False
+        subprocess.run(["herdr", "tab", "close", tab.read_text().strip()], capture_output=True)
+        tab.unlink()
+        return True
+
+
+# hc reports no status for a program that has not reported yet (booting); an error ends a turn like idle,
+# so the guard still reads the screen for a usage limit.
+HC_STATUS = {None: "working", "error": "idle"}
+
+
+def hc_status(terminal: dict) -> str:
+    status = terminal.get("status")
+    if isinstance(status, dict):
+        status = status.get("state")
+    return HC_STATUS.get(status, status)
+
+
+class HcCli:
+    """herdr-core: the project's terminals carry the label lineage.project=<git common dir>, because hc
+    names are unique among all live terminals of the user, not per project."""
+
+    def __init__(self, project: Path):
+        self.project = str(project)
+
+    def _hc(self, *args: str, check: bool = False) -> subprocess.CompletedProcess:
+        return subprocess.run(["hc", *args], capture_output=True, text=True, check=check)
+
+    def _terminals(self, *labels: str) -> list[dict]:
+        filters = [f for label in labels for f in ("--label", label)]
+        out = self._hc("ls", "--json", *filters, check=True).stdout
+        return json.loads(out)["terminals"]
+
+    def _own(self) -> list[dict]:
+        return [t for t in self._terminals(f"lineage.project={self.project}") if t.get("name")]
+
+    def address(self, name: str) -> str | None:
+        return next((t["address"] for t in self._own() if t["name"] == name), None)
+
+    def agent_status(self) -> dict[str, str]:
+        return {t["name"]: hc_status(t) for t in self._own()}
+
+    def agent_panes(self) -> dict[str, str]:
+        return {t["name"]: t["address"] for t in self._own()}
+
+    def live_panes(self) -> set[str]:
+        return {t["address"] for t in self._terminals()}
+
+    def screen(self, name: str) -> str:
+        address = self.address(name)
+        return self._hc("read", address).stdout if address else ""
+
+    def prompt(self, name: str, text: str) -> bool:
+        address = self.address(name)
+        return bool(address) and self._hc("send", address, text).returncode == 0
+
+    def close_coordinator(self, state: Path) -> bool:
+        address = self.address(COORDINATOR)
+        if not address:
+            return False
+        self._hc("kill", address)
+        self._hc("rm", address)
+        return True
+
+
+RUNNERS = ("herdr", "hc")
+
+
+def runner_for(name: str, project: Path) -> Runner:
+    if name == "hc":
+        return HcCli(project)
+    if name == "herdr":
+        return HerdrCli()
+    raise ValueError(f"the guard needs the herdr or hc runner, not {name!r}")
 
 
 def marker(directory: Path, name: str) -> Path | None:
@@ -121,33 +213,28 @@ class Coordinator(Protocol):
 
 
 class CoordinatorCli:
-    def __init__(self, lineage: str | None, main: Path, state: Path):
+    def __init__(self, lineage: str | None, main: Path, state: Path, runner: Runner):
         self.lineage = lineage or lineage_command()
         self.main = main
         self.state = state
+        self.runner = runner
 
     def close(self) -> bool:
         """Only with a clean main: a coordinator closed mid-merge would leave it half done."""
         if subprocess.run(["git", "-C", str(self.main), "status", "--porcelain", "--untracked-files=no"],
                           capture_output=True, text=True).stdout.strip():
             return False
-        tab = self.state / "dr-coordinator.tab"
-        if not tab.exists():
-            return False
-        subprocess.run(["herdr", "tab", "close", tab.read_text().strip()], capture_output=True)
-        tab.unlink()
-        return True
+        return self.runner.close_coordinator(self.state)
 
     def start(self, account: str) -> bool:
         return subprocess.run([self.lineage, "round", "start-coordinator", account], cwd=self.main,
                               capture_output=True, text=True).returncode == 0
 
     def nudge(self) -> bool:
-        return subprocess.run(
-            ["herdr", "agent", "prompt", COORDINATOR,
-             "The guard has seen no watcher for half an hour. Follow the coordinate skill: see what is "
-             "open, restart `lineage round watch` in the background and carry on."],
-            capture_output=True, text=True).returncode == 0
+        return self.runner.prompt(
+            COORDINATOR,
+            "The guard has seen no watcher for half an hour. Follow the coordinate skill: see what is "
+            "open, restart `lineage round watch` in the background and carry on.")
 
 
 COORDINATOR = "coordinator"
@@ -156,12 +243,12 @@ COORDINATOR_QUIET = 1800
 
 
 class Guard:
-    def __init__(self, root: Path, state: Path, herdr: Herdr, starter: Callable[[str, str, Path], bool],
+    def __init__(self, root: Path, state: Path, runner: Runner, starter: Callable[[str, str, Path], bool],
                  log: Callable[[str], None] = lambda line: None, coordinator: Coordinator | None = None,
                  accounts: tuple[str, ...] | None = None, keeper: disk.Keeper | None = None):
         self.root = root
         self.state = state
-        self.herdr = herdr
+        self.runner = runner
         self.starter = starter
         self.log = log
         self.coordinator = coordinator
@@ -232,7 +319,7 @@ class Guard:
         already recorded block further ahead on every check."""
         now = int(now_dt.timestamp())
         for name in names:
-            screen = self.herdr.screen(name)
+            screen = self.runner.screen(name)
             reset = limit_reset(screen, now_dt)
             if reset is None:
                 continue
@@ -305,24 +392,24 @@ class Guard:
         return f"{status} limit -> {choice}"
 
     def _heartbeats(self) -> dict[str, int]:
-        """Last `lineage round watch` beat per pane (file name is the pane id with ':' as '_')."""
+        """Last `lineage round watch` beat per pane, keyed by heartbeat_key(pane)."""
         beats: dict[str, int] = {}
         for name in HEARTBEAT_FOLDERS:
             folder = self.state / name
             if folder.is_dir():
                 for f in folder.iterdir():
-                    pane = f.name.replace("_", ":")
-                    beats[pane] = max(beats.get(pane, 0), int(f.read_text().strip() or 0))
+                    beats[f.name] = max(beats.get(f.name, 0), int(f.read_text().strip() or 0))
         return beats
 
     def _coordinate(self, agents: dict[str, str], state: dict, now: int) -> str:
         mine = state.setdefault("_coordinator", {})
         account = mine.get("account", self.known[0])
         status = agents.get(COORDINATOR)
-        own_pane = self.herdr.agent_panes().get(COORDINATOR) if status else None
+        own_pane = self.runner.agent_panes().get(COORDINATOR) if status else None
+        own_pane = heartbeat_key(own_pane) if own_pane else None
         beats = self._heartbeats()
         # A closed pane leaves its last beat behind; only a pane that still runs an agent is another session.
-        live = self.herdr.live_panes()
+        live = {heartbeat_key(p) for p in self.runner.live_panes()}
         others = [
             max(0, now - s) for p, s in beats.items()
             if p != own_pane and p in live and now - s < COORDINATOR_QUIET
@@ -368,7 +455,7 @@ class Guard:
         return f"coordinator {account} {status} ({watcher})"
 
     def run_round(self, now: int) -> None:
-        agents = self.herdr.agent_status()
+        agents = self.runner.agent_status()
         self._active = {n for n in agents if n.startswith("dr-")}
         state = self._handled()
         disk_status = ""
@@ -409,8 +496,10 @@ class _DryCoordinator:
 
 
 def run(root: Path, state: Path, interval: int = 120, once: bool = False,
-        dry_run: bool = False, with_coordinator: bool = False, lineage: str | None = None) -> None:
+        dry_run: bool = False, with_coordinator: bool = False, lineage: str | None = None,
+        runner: str = "herdr") -> None:
     """With dry_run the decisions are real but nothing starts and the shared state stays untouched."""
+    project = state
     if dry_run:
         copy = Path(tempfile.mkdtemp(prefix="guard-dryrun-"))
         names = [*state.glob("dr-limit-*"), *state.glob("dr-limiet-*"), state / "dr-accounts",
@@ -435,13 +524,14 @@ def run(root: Path, state: Path, interval: int = 120, once: bool = False,
         except OSError:
             pass
 
+    backend = runner_for(runner, project)
     starter = (lambda id_, account, out: True) if dry_run else research_starter(lineage, root)
     coordinator = None
     if with_coordinator:
-        coordinator = _DryCoordinator() if dry_run else CoordinatorCli(lineage, root, state)
+        coordinator = _DryCoordinator() if dry_run else CoordinatorCli(lineage, root, state, backend)
     keeper = disk.Keeper(root, log, _notify, dry_run)
-    guard = Guard(root, state, HerdrCli(), starter, log, coordinator, keeper=keeper)
-    log("guard started")
+    guard = Guard(root, state, backend, starter, log, coordinator, keeper=keeper)
+    log(f"guard started ({runner} runner)")
     while True:
         now = int(time.time())
         try:

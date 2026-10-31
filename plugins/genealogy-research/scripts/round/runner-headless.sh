@@ -22,7 +22,7 @@ runner_start_leader() {
   )
   sleep 2
   _leader_alive "$out/leader.pid" || { echo "WARNING: $name exited right away; see $out/leader.log" >&2; return 0; }
-  RUNNER_TAB=
+  RUNNER_WHERE=
   return 0
 }
 
@@ -69,3 +69,6 @@ runner_stop() {
 }
 
 runner_after_finish() { return 0; }
+
+runner_start_coordinator() { echo "the headless runner cannot host a coordinator; use hc or herdr" >&2; return 2; }
+runner_start_guard() { echo "the headless runner cannot host the guard; use hc or herdr" >&2; return 2; }

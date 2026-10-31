@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Starts deep research on one person from the queue: status in_progress with its own ID block, its own
 # worktree and branch, and a leader started by the runner (docs/rounds.md): a herdr tab labelled with the
-# person's name (leader pane dr-<id>; helpers from `lineage round helper` come as panes next to it), a
-# background process (headless) or instructions for the user (inline).
+# person's name (leader pane dr-<id>; helpers from `lineage round helper` come as panes next to it), an hc
+# terminal dr-<id> (helpers as its child terminals), a background process (headless) or instructions for the
+# user (inline).
 #
 # --resume: an interrupted round gets a new leader in the existing worktree.
 # The account is explicit, independent of the caller's environment (lineage config accounts). A new start
@@ -132,4 +133,4 @@ runner_start_leader "$WT" "$NAME" "${PERSON:-$ID}" "$MODEL" "$ACCOUNT" "$PROMPT"
 STATE=started
 [ "$RESUME" = 1 ] && STATE=resumed
 [ "$UPDATE" = 1 ] && [ "$RESUME" = 0 ] && STATE="update round started"
-echo "$ID $STATE on account $ACCOUNT ($RUNNER runner${RUNNER_TAB:+, tab $RUNNER_TAB}, agent $NAME, worktree $WT)"
+echo "$ID $STATE on account $ACCOUNT ($RUNNER runner${RUNNER_WHERE:+, $RUNNER_WHERE}, agent $NAME, worktree $WT)"

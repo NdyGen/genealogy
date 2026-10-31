@@ -2,8 +2,8 @@
 #
 # Provides project paths from lineage.toml, account and usage-limit helpers, marker file names (with the old
 # Dutch names still read), and picks the runner: it loads runner-<name>.sh, which implements
-# runner_start_leader, runner_start_helper, runner_list, runner_screen, runner_stop, runner_prompt and
-# runner_after_finish (see docs/rounds.md).
+# runner_start_leader, runner_start_helper, runner_list, runner_screen, runner_stop, runner_prompt,
+# runner_after_finish, runner_start_coordinator and runner_start_guard (see docs/rounds.md).
 
 ROUND_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # lineage itself runs frozen; this keeps any other uv call from rewriting the project's uv.lock in main.
@@ -177,6 +177,7 @@ limit_reset_time() {
 }
 
 # Shell snippet that selects the account: for herdr panes (run as a command line) and for subshells.
+# (The hc runner passes the account through env(1) instead.)
 account_env_snippet() {
   local dir
   dir=$(account_dir "$1")
@@ -202,11 +203,16 @@ credential_file() {
 
 # --- runner ----------------------------------------------------------------------------------------------
 
-# A leader needs a herdr session for the herdr runner; outside one, the round is prepared and left to the user.
+# A leader needs a herdr session for the herdr runner and hc for the hc runner; without them, the round is
+# prepared and left to the user.
 load_runner() {
   RUNNER=$(cd "${ROOT:-.}" && lineage config runner)
   if [ "$RUNNER" = herdr ] && [ "${HERDR_ENV:-}" != 1 ]; then
     echo "not in Herdr; using the inline runner (start the agent yourself in the worktree)" >&2
+    RUNNER=inline
+  fi
+  if [ "$RUNNER" = hc ] && ! command -v hc >/dev/null; then
+    echo "hc (herdr-core) is not on PATH; using the inline runner (start the agent yourself in the worktree)" >&2
     RUNNER=inline
   fi
   [ -f "$ROUND_DIR/runner-$RUNNER.sh" ] || die "unknown runner '$RUNNER'"

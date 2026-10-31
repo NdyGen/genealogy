@@ -12,7 +12,7 @@ plugins/genealogy-research/
   cli/                             # the Python CLI
   scripts/round/
     runner.sh                      # sourced: picks the runner, loads runner-<name>.sh, common helpers
-    runner-herdr.sh  runner-headless.sh  runner-inline.sh
+    runner-hc.sh  runner-herdr.sh  runner-headless.sh  runner-inline.sh
     start.sh  helper.sh  finish.sh  merge.sh  undo.sh  watch.sh  start-guard.sh  start-coordinator.sh
   skills/deep-research/            # SKILL.md, references/{report.md, sources-nl.md, lessons.md}, evals/
   skills/coordinate/               # SKILL.md (was references/coordinatie.md); user-invoked only
@@ -59,7 +59,7 @@ The output folder is `lineage config path output --relative` (default `output`, 
 | `bijwerk-resultaat.md` | `update-result.md` |
 | `account`, `model` | same |
 | `opdracht` | `brief` |
-| `herdr-tab` | `runner-tab` (herdr), `leader.pid` + `leader.log` (headless) |
+| `herdr-tab` | `runner-tab` (herdr), `leader.pid` + `leader.log` (headless); hc keeps no marker, it finds a round by its labels |
 
 Readers (guard.py, review.py, watch.sh) accept the old names too, for worktrees started before the switch.
 State in the git common dir keeps its names (`dr-accounts`, `dr-max-rondes` -> read both `dr-max-rounds`
@@ -83,7 +83,8 @@ New CLI commands for the scripts:
 - `lineage config path <key> --relative`: path below the project root.
 - `lineage config value <key>`: one scalar setting (`language`, `runner`, `name`, `line_root`).
 - `lineage config runner`: the runner to use: `DR_RUNNER`, else `runner` in lineage.toml, else `auto`
-  resolved to `herdr` when `HERDR_ENV=1` and `herdr` is on PATH, else `inline`.
+  resolved to `hc` when `HC_TERMINAL_ID` is set (a herdr-core terminal, as in the Herdr app) and `hc` is on
+  PATH, else `herdr` when `HERDR_ENV=1` and `herdr` is on PATH, else `inline`.
 - `lineage config accounts`: one line per account, `name<TAB>config_dir` (config_dir empty for the
   default). Without `[accounts]` a single line `default<TAB>`.
 
@@ -91,16 +92,46 @@ New CLI commands for the scripts:
 
 `runner.sh` sets `RUNNER=$(lineage config runner)` and sources `runner-$RUNNER.sh`. Each implements:
 
-| function | herdr | headless | inline |
-|---|---|---|---|
-| `runner_start_leader <wt> <name> <label> <model> <account> <prompt>` | own tab labelled `<label>`, pane `<name>`, `herdr agent start ... --model --permission-mode auto`, prompt resent up to 3x | `setsid claude -p <prompt> --model <model> --permission-mode auto --output-format stream-json --verbose` in `<wt>`, pid and log in `<wt>/<OUT>/leader.{pid,log}` | prints "open Claude in <wt> and say: <prompt>"; returns 0 |
-| `runner_start_helper <wt> <name> <agent> <prompt> <result>` (blocks until done) | pane next to the leader, limits `DR_MAX_AGENTS`/`DR_MAX_HULP`, refuse a permission prompt once, timeout `DR_HULP_MAX_MIN` | `claude -p --agent <agent> --permission-mode auto <prompt>` in the foreground with timeout | `return 4` |
-| `runner_list` | `name<TAB>status` for every agent | the leaders of `.worktrees/dr-*` from their pid files | nothing |
-| `runner_screen <name>` | `herdr agent read --source visible` | tail of the leader log | nothing |
-| `runner_stop <wt> <name>` | ctrl+c, close the tab (and the old shared-tab panes) | kill the process group | nothing |
-| `runner_prompt <name> <text>` | `herdr agent prompt` | not supported (return 2) | not supported |
+| function | hc | herdr | headless | inline |
+|---|---|---|---|---|
+| `runner_start_leader <wt> <name> <label> <model> <account> <prompt>` | terminal `<name>` in `<wt>`: `claude --model --permission-mode auto <prompt>` (the brief is claude's first prompt), trust dialog answered once | own tab labelled `<label>`, pane `<name>`, `herdr agent start ... --model --permission-mode auto`, prompt resent up to 3x | `setsid claude -p <prompt> --model <model> --permission-mode auto --output-format stream-json --verbose` in `<wt>`, pid and log in `<wt>/<OUT>/leader.{pid,log}` | prints "open Claude in <wt> and say: <prompt>"; returns 0 |
+| `runner_start_helper <wt> <name> <agent> <prompt> <result>` (blocks until done) | child terminal of the leader (`--parent $HC_TERMINAL_ID --no-notify`), same limits, refusal and timeout as herdr; `hc wait` instead of polling | pane next to the leader, limits `DR_MAX_AGENTS`/`DR_MAX_HELPERS`, refuse a permission prompt once, timeout `DR_HELPER_MAX_MIN` | `claude -p --agent <agent> --permission-mode auto <prompt>` in the foreground with timeout | `return 4` |
+| `runner_list` | `name<TAB>status` for the project's live terminals | `name<TAB>status` for every agent | the leaders of `.worktrees/dr-*` from their pid files | nothing |
+| `runner_screen <name>` | `hc read` (the visible screen) | `herdr agent read --source visible` | tail of the leader log | nothing |
+| `runner_stop <wt> <name>` | `hc kill` + `hc rm` of every terminal of the round, finished ones included | ctrl+c, close the tab (and the old shared-tab panes) | kill the process group | nothing |
+| `runner_prompt <name> <text>` | `hc send` | `herdr agent prompt` | not supported (return 2) | not supported |
+| `runner_after_finish <wt> <name>` | helpers closed now, the leader 30 s later | helpers closed now, the tab 30 s later | nothing | nothing |
+| `runner_start_coordinator <main> <account> <prompt>` | terminal `coordinator` | tab `coordinator`, its id in `<git-common-dir>/dr-coordinator.tab` | return 2 | return 2 |
+| `runner_start_guard <main> <command...>` | terminal `guard` (`DR_RUNNER=hc`) | tab `guard` | return 2 | return 2 |
 
-Status values: `working idle blocked done gone`. The account's `config_dir` is exported as
+Status values: `working idle blocked done gone`. hc reports `idle working done blocked error` itself (OSC 7501);
+no status yet counts as `working` (booting), `error` as `idle` (the turn ended; the guard reads the screen
+for a usage limit), a finished terminal as `gone`.
+
+### hc (herdr-core, the Herdr app)
+
+hc starts programs in the core's environment, not the caller's: the runner passes `PATH` and the account
+(`CLAUDE_CONFIG_DIR`, or `-u CLAUDE_CONFIG_DIR`; always `-u ANTHROPIC_MODEL`) through `env(1)`.
+
+hc names are unique among all live terminals of the user, across projects. Every terminal the runner starts
+carries `lineage.project=<git common dir>` and `lineage.role=leader|helper|coordinator|guard`, rounds also
+`lineage.round=<ID>`; every lookup filters on the project first. Two projects that run rounds at the same
+time still cannot both have a terminal `coordinator` or `guard`.
+
+Placement in the app, chosen over making the round a sub-agent of the coordinator:
+- Leaders, the coordinator and the guard have no hc parent (`--no-parent`). A child ends with its parent,
+  and the guard restarts coordinators (usage limit, another session took over), which would end every round
+  with it; `--outlive-parent` would leave a dangling parent and hc would type notes about every round into
+  the coordinator's prompt. Instead they copy the `herdr.space`/`herdr.tab` labels of the terminal that
+  starts them, so the round shows in the coordinator's space and tab. The guard copies them from the
+  coordinator when it is started and passes them on to rounds it resumes.
+- A helper is a child of its leader (`--parent $HC_TERMINAL_ID --no-notify`): it shows as the leader's
+  sub-agent, ends when the leader is stopped, and hc types no notes into the leader while `helper.sh` already
+  waits for it.
+
+The guard (`lineage guard --runner hc`, default from `lineage config runner`) uses the same labels. A
+`lineage round watch` heartbeat is keyed by `HC_TERMINAL_ID` (falling back to `HERDR_PANE_ID`), with `:` and
+`/` written as `_`. The account's `config_dir` is exported as
 `CLAUDE_CONFIG_DIR` for the leader (unset for the default account) and inherited by helpers.
 
 Agent names: the plugin namespaces agents, so `helper.sh` passes `--agent genealogy-research:dr-<role>`

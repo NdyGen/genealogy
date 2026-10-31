@@ -1,7 +1,7 @@
 {
   "name": "genealogy-research",
   "displayName": "Genealogy research",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Deep research per ancestor in your own GEDCOM tree: fact checks against archive sources, records beyond baptism, marriage and burial, historical background, family completion, life stories and a life book. Includes the lineage CLI.",
   "author": {
     "name": "Andy van Dongen"
@@ -25,9 +25,10 @@
     "runner": {
       "type": "string",
       "title": "Runner",
-      "description": "How research rounds and helper agents run: auto (Herdr when available, otherwise inline), herdr, headless or inline.",
+      "description": "How research rounds and helper agents run: auto (hc in the Herdr app, herdr in the Herdr CLI, otherwise inline), hc, herdr, headless or inline.",
       "options": [
         "auto",
+        "hc",
         "herdr",
         "headless",
         "inline"

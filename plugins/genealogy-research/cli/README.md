@@ -13,7 +13,7 @@ gedcom = "data/tree.ged"
 targets = [{ label = "Me", id = "I1" }, { label = "Partner", id = "I2" }]
 line_root = "I5"                    # whose ancestors form the direct line; default the first target
 stems = [{ name = "Smith", id = "I1" }, { name = "Jones", id = "I2", men_first = true }]
-runner = "auto"                     # auto, herdr, headless, inline
+runner = "auto"                     # auto, hc, herdr, headless, inline
 
 [paths]                             # any file or folder by name; see `lineage config show`
 research = "research"

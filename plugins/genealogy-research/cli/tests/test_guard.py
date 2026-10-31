@@ -1,4 +1,8 @@
 import datetime as dt
+import json
+import os
+import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -66,7 +70,7 @@ def test_account_choice_prefers_current_then_any_free():
 
 
 class World:
-    """Herdr and start-onderzoek.sh stand-in: agents with status and screen, and a log of resumes."""
+    """Runner and `lineage round start` stand-in: agents with status and screen, and a log of resumes."""
 
     def __init__(self, root):
         self.root = root
@@ -104,7 +108,7 @@ class World:
 
 
 def run_round(world, tmp_path, now):
-    b = guard.Guard(tmp_path, state=tmp_path / "state", herdr=world, starter=world.resume_stub)
+    b = guard.Guard(tmp_path, state=tmp_path / "state", runner=world, starter=world.resume_stub)
     return b, b.run_round(now)
 
 
@@ -207,7 +211,7 @@ def test_failed_resume_is_retried_next_round(tmp_path):
         return len(attempts) > 1 and w.resume_stub(id_, account, out)
 
     for minute in (0, 2):
-        guard.Guard(tmp_path, state=tmp_path / "state", herdr=w, starter=fails_first).run_round(
+        guard.Guard(tmp_path, state=tmp_path / "state", runner=w, starter=fails_first).run_round(
             ts(2026, 10, 3, 11, minute))
     assert attempts == ["personal", "personal"] and w.resumed == [("I1", "personal")]
 
@@ -244,7 +248,7 @@ def coord_round(w, c, tmp_path, now, beat=None, pane="w1:p-other"):
     if beat is not None:
         (state / "dr-coordinator.alive.d" / pane.replace(":", "_")).write_text(str(beat))
     lines = []
-    guard.Guard(tmp_path, state=state, herdr=w, starter=w.resume_stub, coordinator=c,
+    guard.Guard(tmp_path, state=state, runner=w, starter=w.resume_stub, coordinator=c,
                     log=lines.append).run_round(now)
     return lines
 
@@ -400,7 +404,7 @@ def test_a_worktree_with_the_old_dutch_names_is_still_understood(tmp_path):
     (tmp_path / "state").mkdir()
     (tmp_path / "state" / "dr-limiet-personal").write_text(str(ts(2026, 10, 3, 15, 0)))
     (tmp_path / "state" / "dr-max-rondes").write_text("1\n")
-    b = guard.Guard(tmp_path, state=tmp_path / "state", herdr=w, starter=w.resume_stub)
+    b = guard.Guard(tmp_path, state=tmp_path / "state", runner=w, starter=w.resume_stub)
     assert b.resets() == {"personal": ts(2026, 10, 3, 15, 0)}
     assert b.max_rounds() == 1
     (out / "KLAAR").write_text("")
@@ -414,7 +418,7 @@ def test_the_new_limit_file_wins_over_the_old_one(tmp_path):
     (tmp_path / "state").mkdir()
     (tmp_path / "state" / "dr-limiet-work").write_text("100")
     (tmp_path / "state" / "dr-limit-work").write_text("200")
-    b = guard.Guard(tmp_path, state=tmp_path / "state", herdr=w, starter=w.resume_stub)
+    b = guard.Guard(tmp_path, state=tmp_path / "state", runner=w, starter=w.resume_stub)
     assert b.resets()["work"] == 200
 
 
@@ -441,8 +445,8 @@ def test_new_heartbeat_folder_and_new_markers_are_read(tmp_path):
     folder = tmp_path / "state" / "dr-watch.alive.d"
     folder.mkdir()
     (folder / "w1_p-x").write_text("42")
-    b = guard.Guard(tmp_path, state=tmp_path / "state", herdr=w, starter=w.resume_stub)
-    assert b._heartbeats() == {"w1:p-x": 42}
+    b = guard.Guard(tmp_path, state=tmp_path / "state", runner=w, starter=w.resume_stub)
+    assert b._heartbeats() == {"w1_p-x": 42}
     assert guard.marker(out, "DONE") == out / "DONE"
     (out / "KLAAR").write_text("")
     (out / "DONE").unlink()
@@ -471,3 +475,133 @@ def test_resume_runs_lineage_round_start(tmp_path):
 def test_lineage_command_can_be_overridden(monkeypatch):
     monkeypatch.setenv("LINEAGE_BIN", "/x/lineage")
     assert guard.lineage_command() == "/x/lineage"
+
+
+FAKE_HC = r'''#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+here = Path(__file__).parent
+with (here / "hc.calls").open("a") as f:
+    f.write(" ".join(sys.argv[1:]) + "\n")
+terminals = json.loads((here / "hc.json").read_text())
+cmd, rest = sys.argv[1], sys.argv[2:]
+if cmd == "ls":
+    wanted = [rest[i + 1] for i, a in enumerate(rest) if a == "--label"]
+    def match(t):
+        return all(t.get("labels", {}).get(k) == v for k, _, v in (w.partition("=") for w in wanted))
+    print(json.dumps({"terminals": [
+        {k: v for k, v in t.items() if k != "labels"} for t in terminals if match(t)]}))
+elif cmd == "read":
+    print(next(t.get("screen", "") for t in terminals if t["address"] == rest[0]))
+'''
+
+PROJECT = "/p/.git"
+
+
+def fake_hc(tmp_path, monkeypatch, terminals):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    (bin_dir / "hc").write_text(FAKE_HC)
+    (bin_dir / "hc").chmod(0o755)
+    (bin_dir / "hc.json").write_text(json.dumps(terminals))
+    monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+    return bin_dir / "hc.calls"
+
+
+def own(address, name, status=None, **labels):
+    t = {"address": address, "name": name, "state": "live",
+         "labels": {"lineage.project": PROJECT, **labels}}
+    if status is not None:
+        t["status"] = status
+    return t
+
+
+def test_hc_runner_sees_only_the_projects_named_terminals(tmp_path, monkeypatch):
+    fake_hc(tmp_path, monkeypatch, [
+        own("t3", "dr-i1", "working"),
+        own("t4", "i1-search-01", "blocked"),
+        own("t5", "coordinator", "error"),
+        own("t6", "guard"),
+        own("t7", None, "idle"),
+        {"address": "t8", "name": "dr-i1", "status": "idle", "labels": {"lineage.project": "/other/.git"}},
+        {"address": "t9", "status": "idle"},
+    ])
+    hc = guard.HcCli(Path(PROJECT))
+    assert hc.agent_status() == {
+        "dr-i1": "working", "i1-search-01": "blocked", "coordinator": "idle", "guard": "working"}
+    assert hc.agent_panes()["dr-i1"] == "t3"
+    assert hc.live_panes() == {f"t{n}" for n in range(3, 10)}
+
+
+def test_hc_runner_reads_screen_and_prompts_by_address(tmp_path, monkeypatch):
+    coordinator = own("t5", "coordinator", "idle")
+    coordinator["screen"] = "You've hit your session limit · resets 3pm"
+    calls = fake_hc(tmp_path, monkeypatch, [
+        coordinator, {"address": "t1", "name": "coordinator", "status": "idle"}])
+    hc = guard.HcCli(Path(PROJECT))
+    assert "session limit" in hc.screen("coordinator")
+    assert hc.screen("dr-gone") == ""
+    assert hc.prompt("coordinator", "carry on")
+    assert not hc.prompt("dr-gone", "carry on")
+    assert hc.close_coordinator(tmp_path)
+    lines = calls.read_text().splitlines()
+    assert "read t5" in lines and "send t5 carry on" in lines
+    assert lines[-2:] == ["kill t5", "rm t5"]
+
+
+def test_hc_coordinator_close_without_one_does_nothing(tmp_path, monkeypatch):
+    calls = fake_hc(tmp_path, monkeypatch, [])
+    assert not guard.HcCli(Path(PROJECT)).close_coordinator(tmp_path)
+    assert "kill" not in calls.read_text()
+
+
+def test_hc_status_mapping():
+    assert guard.hc_status({}) == "working"
+    assert guard.hc_status({"status": "error"}) == "idle"
+    assert guard.hc_status({"status": {"app": "claude-code", "state": "blocked"}}) == "blocked"
+    assert guard.hc_status({"status": "done"}) == "done"
+
+
+def test_runner_choice(tmp_path):
+    assert isinstance(guard.runner_for("hc", tmp_path), guard.HcCli)
+    assert isinstance(guard.runner_for("herdr", tmp_path), guard.HerdrCli)
+    with pytest.raises(ValueError):
+        guard.runner_for("inline", tmp_path)
+
+
+def test_hc_terminal_heartbeat_counts_as_a_live_session(tmp_path):
+    """An hc address such as t7 or mac/t7 is the heartbeat's pane id."""
+    w = World(tmp_path)
+    (tmp_path / ".worktrees").mkdir()
+    c = Coord(w)
+    w.agents["coordinator"] = "idle"
+    w.sessions = {"mac/t7"}
+    now = ts(2026, 10, 3, 13, 0)
+    coord_round(w, c, tmp_path, now, beat=now - 30, pane="mac_t7")
+    assert c.closed == 1
+    assert guard.heartbeat_key("mac/t7") == guard.heartbeat_key("mac_t7") == "mac_t7"
+    assert guard.heartbeat_key("w1:p3") == "w1_p3"
+
+
+class RecordingRunner:
+    def __init__(self):
+        self.prompts, self.closed = [], []
+
+    def prompt(self, name, text):
+        self.prompts.append(name)
+        return True
+
+    def close_coordinator(self, state):
+        self.closed.append(state)
+        return True
+
+
+def test_coordinator_nudge_and_close_go_through_the_runner(tmp_path):
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    runner = RecordingRunner()
+    c = guard.CoordinatorCli("lineage", tmp_path, tmp_path / "state", runner)
+    assert c.nudge() and runner.prompts == ["coordinator"]
+    assert c.close() and runner.closed == [tmp_path / "state"]
+    (tmp_path / "f").write_text("x")
+    subprocess.run(["git", "-C", str(tmp_path), "add", "f"], check=True)
+    assert not c.close() and len(runner.closed) == 1
