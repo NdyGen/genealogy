@@ -103,6 +103,7 @@ New CLI commands for the scripts:
 | `runner_after_finish <wt> <name>` | helpers closed now, the leader 30 s later | helpers closed now, the tab 30 s later | nothing | nothing |
 | `runner_start_coordinator <main> <account> <prompt>` | terminal `coordinator` | tab `coordinator`, its id in `<git-common-dir>/dr-coordinator.tab` | return 2 | return 2 |
 | `runner_start_guard <main> <command...>` | terminal `guard` (`DR_RUNNER=hc`) | tab `guard` | return 2 | return 2 |
+| `runner_guard_alive` (optional) | the terminal `guard` lives | not defined | not defined | not defined |
 
 Status values: `working idle blocked done gone`. hc reports `idle working done blocked error` itself (OSC 7501);
 no status yet counts as `working` (booting), `error` as `idle` (the turn ended; the guard reads the screen
@@ -125,8 +126,9 @@ Placement in the app, chosen over making the round a sub-agent of the coordinato
   the coordinator's prompt. Instead they copy only the `herdr.space` label of the terminal that starts
   them: without `herdr.tab` the app opens a new tab, so each round, the coordinator and the guard get their
   own tab in the coordinator's space, as under herdr. The guard copies the space from the coordinator when
-  it is started and passes it on to rounds it resumes. The app numbers these tabs; the terminal name
-  (`dr-<id>`) identifies the round.
+  it is started and passes it on to rounds it resumes. The tab is named through the `where` label
+  (`<space> / <title>`), which the app takes as the tab's title: `<ID> <person>` for a round, `coordinator`
+  and `guard`; without it the app numbers the tab.
 - A helper is a child of its leader (`--parent $HC_TERMINAL_ID --no-notify`): it shows as the leader's
   sub-agent, ends when the leader is stopped, and hc types no notes into the leader while `helper.sh` already
   waits for it.

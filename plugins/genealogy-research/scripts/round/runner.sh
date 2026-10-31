@@ -3,7 +3,8 @@
 # Provides project paths from lineage.toml, account and usage-limit helpers, marker file names (with the old
 # Dutch names still read), and picks the runner: it loads runner-<name>.sh, which implements
 # runner_start_leader, runner_start_helper, runner_list, runner_screen, runner_stop, runner_prompt,
-# runner_after_finish, runner_start_coordinator and runner_start_guard (see docs/rounds.md).
+# runner_after_finish, runner_start_coordinator and runner_start_guard, and optionally runner_guard_alive
+# (see docs/rounds.md).
 
 ROUND_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 # lineage itself runs frozen; this keeps any other uv call from rewriting the project's uv.lock in main.

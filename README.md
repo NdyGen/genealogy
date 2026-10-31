@@ -63,7 +63,7 @@ Nothing runs in the background, so nothing needs to be stopped.
 3. **Start the guard:** `lineage round start-guard`. It runs as the terminal "guard" and does what the guard under `herdr` below does.
 4. **Set the limits** as under `herdr` below.
 
-Every round is a terminal `dr-<id>` in its own tab in the space of the session that started it (the coordinator's, or the guard's when it resumes a round); its helpers are child terminals of the round, so they show as its sub-agents and end with it. `hc ls` lists them; `hc attach dr-<id>` takes one over (ctrl+\\ detaches). To stop: end the coordinator session and `hc kill guard`.
+Every round is a terminal `dr-<id>` in its own tab `<ID> <person>` in the space of the session that started it (the coordinator's, or the guard's when it resumes a round); its helpers are child terminals of the round, so they show as its sub-agents and end with it. `hc ls` lists them; `hc attach dr-<id>` takes one over (ctrl+\\ detaches). To stop: end the coordinator session and `hc kill guard`.
 
 ### herdr
 

@@ -106,7 +106,7 @@ def test_leader_gets_its_own_tab_in_the_callers_space_with_its_account(core):
     env, base = core
     (base / "bin" / "trust").write_text("")
     caller = json.loads(hc(env, "run", "--bg", "--name", "me", "--no-parent", "--label", "herdr.space=S1",
-                           "--label", "herdr.tab=T1", "--label", "where=x", "sleep", "300").stdout)["address"]
+                           "--label", "herdr.tab=T1", "--label", "where=Family / main", "sleep", "300").stdout)["address"]
     r = runner(env, base, """
 runner_start_leader "$WT" dr-i7 "Jan Jansen" opus work "Use the deep-research skill for person I7."
 echo "$RUNNER_WHERE"
@@ -119,7 +119,7 @@ runner_list
     t = terminal(env, address)
     assert t["name"] == "dr-i7" and t["parent"] is None and t["cwd"] == str(base / "wt")
     assert t["labels"] == {
-        "herdr.space": "S1", "lineage.project": str(base / "repo.git"),
+        "herdr.space": "S1", "where": "Family / I7 Jan Jansen", "lineage.project": str(base / "repo.git"),
         "lineage.role": "leader", "lineage.round": "I7", "lineage.person": "Jan Jansen"}
     cfg, model, args = calls(base)[0]
     assert cfg == "/cfg/work" and model == "unset"
@@ -197,3 +197,16 @@ runner_start_helper "$WT" i7-back-03 dr-background "Write your result to {result
     assert r.returncode == 0, r.stderr
     assert "That action was refused" in (base / "bin" / "answer").read_text()
     assert result.read_text() == "found it\n"
+
+
+def test_guard_alive_follows_its_terminal(core):
+    env, base = core
+    r = runner(env, base, """
+runner_guard_alive && echo before || echo none
+runner_start_guard "$ROOT" sleep 300
+runner_guard_alive && echo running
+hc_close "$(_hc_addr guard)"
+runner_guard_alive && echo still || echo gone
+""")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.split() == ["none", "running", "gone"]

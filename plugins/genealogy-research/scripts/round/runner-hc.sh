@@ -7,7 +7,8 @@
 #
 # Placement in the app: leaders, the coordinator and the guard get no hc parent (a parent's end would end
 # them, and the guard restarts coordinators) but copy only the herdr.space label of the terminal that
-# starts them: each gets its own tab in the coordinator's space, as under herdr. A helper is a child of its leader: it
+# starts them: each gets its own tab in the coordinator's space, as under herdr, named through the `where`
+# label ("<space> / <tab>"), which the app takes as the tab's title. A helper is a child of its leader: it
 # ends with the leader, shows as its sub-agent, and --no-notify keeps hc from typing notes into the
 # leader's prompt while helper.sh already waits for it.
 
@@ -40,14 +41,18 @@ s = s.get("state") if isinstance(s, dict) else s
 print("gone" if t.get("state") == "finished" else {None: "working", "error": "idle"}.get(s, s))' || echo gone
 }
 
-# The herdr.space label of the terminal this runs in. Without herdr.tab the app opens a new tab.
+# _hc_placement <tab title>: the herdr.space label of the terminal this runs in, and a `where` label that
+# names the new tab in that space. Without herdr.tab the app opens a new tab.
 _hc_placement() {
   [ -n "${HC_TERMINAL_ID:-}" ] || return 0
   hc get "$HC_TERMINAL_ID" --json 2>/dev/null | python3 -c '
 import json, sys
-for k, v in json.load(sys.stdin).get("labels", {}).items():
-    if k == "herdr.space":
-        print(f"{k}={v}")' || true
+labels = json.load(sys.stdin).get("labels", {})
+if "herdr.space" in labels:
+    print("herdr.space=" + labels["herdr.space"])
+    space = labels.get("where", "").partition(" / ")[0]
+    if space and sys.argv[1]:
+        print(f"where={space} / {sys.argv[1]}")' "$1" || true
 }
 
 # The env(1) arguments for a Claude terminal: hc starts programs in the core's environment, not the
@@ -60,10 +65,12 @@ _hc_env() {
   printf '%s\n' "PATH=$PATH"
 }
 
-# hc_start <name> <cwd> <role> <round-or-empty> <parent-or-empty> <config-dir> <command...>
-# Starts a terminal in the background and prints its address.
+# hc_start <name> <cwd> <role> <round-or-empty> <parent-or-tab-title> <config-dir> <command...>
+# Starts a terminal in the background and prints its address. A terminal with a parent shows as its sub-agent;
+# without one it gets its own tab with the given title.
 hc_start() {
-  local name=$1 cwd=$2 role=$3 round=$4 parent=$5 dir=$6 l
+  local name=$1 cwd=$2 role=$3 round=$4 parent= title= dir=$6 l
+  case "$5" in tab:*) title=${5#tab:};; *) parent=$5;; esac
   shift 6
   local args=(run --bg --json --name "$name" --cwd "$cwd" --label "lineage.project=$COMMON" --label "lineage.role=$role")
   [ -z "$round" ] || args+=(--label "lineage.round=$round")
@@ -71,7 +78,7 @@ hc_start() {
     args+=(--parent "$parent" --no-notify)
   else
     args+=(--no-parent)
-    while IFS= read -r l; do [ -z "$l" ] || args+=(--label "$l"); done < <(_hc_placement)
+    while IFS= read -r l; do [ -z "$l" ] || args+=(--label "$l"); done < <(_hc_placement "$title")
   fi
   local envs=()
   while IFS= read -r l; do envs+=("$l"); done < <(_hc_env "$dir")
@@ -119,14 +126,16 @@ hc_close() {
 }
 
 runner_start_leader() {
-  local wt=$1 name=$2 label=$3 model=$4 account=$5 prompt=$6 dir id addr old
+  local wt=$1 name=$2 label=$3 model=$4 account=$5 prompt=$6 dir id addr old title
   id=$(upper "${name#dr-}")
   dir=$(account_dir "$account")
   dir=${dir/#\~/$HOME}
+  title=$id
+  [ "$label" = "$id" ] || title="$id $label"
   old=$(_hc_addr "$name")
   [ -z "$old" ] || hc_close "$old"
   # The brief goes in as claude's first prompt, so it cannot be lost while the agent boots.
-  addr=$(hc_start "$name" "$wt" leader "$id" "" "$dir" claude --model "$model" --permission-mode auto "$prompt") \
+  addr=$(hc_start "$name" "$wt" leader "$id" "tab:$title" "$dir" claude --model "$model" --permission-mode auto "$prompt") \
     || { echo "hc could not start $name" >&2; return 1; }
   hc label "$addr" "lineage.person=$label" >/dev/null 2>&1 || true
   hc_await_start "$addr" 90 || echo "WARNING: $name did not pick up the brief within 90 seconds (hc read $addr)" >&2
@@ -256,14 +265,17 @@ runner_start_coordinator() {
   dir=${dir/#\~/$HOME}
   old=$(_hc_addr coordinator)
   [ -z "$old" ] || { hc_close "$old"; sleep 2; }
-  addr=$(hc_start coordinator "$main" coordinator "" "" "$dir" claude --model opus --permission-mode auto "$prompt") || return 1
+  addr=$(hc_start coordinator "$main" coordinator "" tab:coordinator "$dir" claude --model opus --permission-mode auto "$prompt") || return 1
   hc_await_start "$addr" 90 || echo "WARNING: the coordinator did not start its first turn (hc read $addr)" >&2
   RUNNER_WHERE="terminal $addr"
 }
 
+# Whether the project's guard terminal still lives; its heartbeat stays fresh for ten minutes after a kill.
+runner_guard_alive() { [ -n "$(_hc_terms lineage.role=guard)" ]; }
+
 runner_start_guard() {
   local main=$1 addr
   shift
-  addr=$(hc_start guard "$main" guard "" "" "" env DR_RUNNER=hc "$@") || return 1
+  addr=$(hc_start guard "$main" guard "" tab:guard "" env DR_RUNNER=hc "$@") || return 1
   RUNNER_WHERE="terminal $addr"
 }
