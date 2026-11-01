@@ -79,6 +79,7 @@ class World:
         self.resumed = []
         self.closed = []
         self.sessions = {"w1:p-other"}
+        self.session_status = {}
 
     def research(self, id_, account="work", done=False):
         out = self.root / ".worktrees" / f"dr-{id_}" / "output"
@@ -99,6 +100,13 @@ class World:
 
     def screen(self, name):
         return self.screens.get(name, "")
+
+    def pane_status(self, pane):
+        return self.session_status.get(pane, "idle") if pane in self.sessions else None
+
+    def close_pane(self, pane):
+        self.sessions.discard(pane)
+        return True
 
     def close_round(self, id_, out):
         self.closed.append(id_)
@@ -258,6 +266,7 @@ class Coord:
         self.started = []
         self.nudged = 0
         self.closed = 0
+        self.sessions_closed = []
         self.clean = clean
 
     def close(self):
@@ -266,6 +275,12 @@ class Coord:
         self.closed += 1
         self.world.agents.pop("coordinator", None)
         return True
+
+    def close_session(self, pane):
+        if not self.clean:
+            return False
+        self.sessions_closed.append(pane)
+        return self.world.close_pane(pane)
 
     def start(self, account):
         self.started.append(account)
@@ -325,6 +340,62 @@ def test_coordinator_on_a_limit_with_every_account_full_is_closed_and_started_af
     assert c.started == []
     coord_round(w, c, tmp_path, ts(2026, 10, 3, 15, 1), beat=old)
     assert c.started == ["work"]
+
+
+def every_account_full(tmp_path, until=None):
+    (tmp_path / "state").mkdir(exist_ok=True)
+    for acc in ACC:
+        (tmp_path / "state" / f"dr-limit-{acc}").write_text(str(until or ts(2026, 10, 8, 14, 0)))
+
+
+def test_idle_session_is_closed_after_half_an_hour_when_every_account_is_full(tmp_path):
+    w = World(tmp_path)
+    (tmp_path / ".worktrees").mkdir()
+    every_account_full(tmp_path)
+    c = Coord(w)
+    for minute in (0, 20):
+        coord_round(w, c, tmp_path, ts(2026, 10, 3, 13, minute), beat=ts(2026, 10, 3, 13, minute))
+    assert c.sessions_closed == []
+    coord_round(w, c, tmp_path, ts(2026, 10, 3, 13, 30), beat=ts(2026, 10, 3, 13, 29))
+    assert c.sessions_closed == ["w1:p-other"]
+    coord_round(w, c, tmp_path, ts(2026, 10, 3, 13, 32))
+    assert c.started == []
+
+
+def test_session_is_kept_while_it_works_or_an_account_has_room(tmp_path):
+    w = World(tmp_path)
+    (tmp_path / ".worktrees").mkdir()
+    c = Coord(w)
+    for minute in (0, 40):
+        coord_round(w, c, tmp_path, ts(2026, 10, 3, 13, minute), beat=ts(2026, 10, 3, 13, minute))
+    assert c.sessions_closed == []
+    every_account_full(tmp_path)
+    w.session_status["w1:p-other"] = "working"
+    for minute in (41, 59, 80):
+        coord_round(w, c, tmp_path, ts(2026, 10, 3, 13, minute % 60) + 3600 * (minute // 60),
+                    beat=ts(2026, 10, 3, 13, minute % 60) + 3600 * (minute // 60))
+    assert c.sessions_closed == []
+
+
+def test_session_is_kept_while_a_round_runs(tmp_path):
+    w = World(tmp_path)
+    w.research("I1")
+    w.agents["dr-i1"] = "working"
+    every_account_full(tmp_path)
+    c = Coord(w)
+    for minute in (0, 40):
+        coord_round(w, c, tmp_path, ts(2026, 10, 3, 13, minute), beat=ts(2026, 10, 3, 13, minute))
+    assert c.sessions_closed == []
+
+
+def test_session_is_kept_while_main_is_not_clean(tmp_path):
+    w = World(tmp_path)
+    (tmp_path / ".worktrees").mkdir()
+    every_account_full(tmp_path)
+    c = Coord(w, clean=False)
+    for minute in (0, 40):
+        coord_round(w, c, tmp_path, ts(2026, 10, 3, 13, minute), beat=ts(2026, 10, 3, 13, minute))
+    assert c.sessions_closed == [] and "w1:p-other" in w.sessions
 
 
 def test_idle_coordinator_without_heartbeat_is_nudged_once_per_half_hour(tmp_path):
@@ -617,6 +688,14 @@ def test_hc_close_round_ends_the_rounds_terminals_only(tmp_path, monkeypatch):
     assert guard.HcCli(Path(PROJECT)).close_round("I1", tmp_path)
     killed = [line for line in calls.read_text().splitlines() if line.startswith("kill")]
     assert killed == ["kill t3", "kill t4"]
+
+
+def test_hc_pane_status_and_close(tmp_path, monkeypatch):
+    calls = fake_hc(tmp_path, monkeypatch, [{"address": "t9", "status": "idle"}])
+    hc = guard.HcCli(Path(PROJECT))
+    assert hc.pane_status("t9") == "idle" and hc.pane_status("t1") is None
+    assert hc.close_pane("t9")
+    assert calls.read_text().splitlines()[-2:] == ["kill t9", "rm t9"]
 
 
 def test_hc_status_mapping():

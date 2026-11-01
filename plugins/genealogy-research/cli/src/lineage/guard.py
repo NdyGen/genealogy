@@ -70,6 +70,8 @@ class Runner(Protocol):
     def prompt(self, name: str, text: str) -> bool: ...
     def close_coordinator(self, state: Path) -> bool: ...
     def close_round(self, id_: str, out: Path) -> bool: ...
+    def pane_status(self, pane: str) -> str | None: ...
+    def close_pane(self, pane: str) -> bool: ...
 
 
 def heartbeat_key(pane: str) -> str:
@@ -107,6 +109,12 @@ class HerdrCli:
         subprocess.run(["herdr", "tab", "close", tab.read_text().strip()], capture_output=True)
         tab.unlink()
         return True
+
+    def pane_status(self, pane: str) -> str | None:
+        return next((a["agent_status"] for a in self._agents() if a["pane_id"] == pane), None)
+
+    def close_pane(self, pane: str) -> bool:
+        return False
 
     def close_round(self, id_: str, out: Path) -> bool:
         tab = marker(out, "runner-tab")
@@ -174,6 +182,15 @@ class HcCli:
         self._hc("rm", address)
         return True
 
+    def pane_status(self, pane: str) -> str | None:
+        return next((hc_status(t) for t in self._terminals() if t["address"] == pane), None)
+
+    def close_pane(self, pane: str) -> bool:
+        if self._hc("kill", pane).returncode != 0:
+            return False
+        self._hc("rm", pane)
+        return True
+
     def close_round(self, id_: str, out: Path) -> bool:
         terminals = self._terminals(f"lineage.project={self.project}", f"lineage.round={id_}")
         for t in terminals:
@@ -225,6 +242,7 @@ class Coordinator(Protocol):
     def start(self, account: str) -> bool: ...
     def nudge(self) -> bool: ...
     def close(self) -> bool: ...
+    def close_session(self, pane: str) -> bool: ...
 
 
 class CoordinatorCli:
@@ -234,12 +252,16 @@ class CoordinatorCli:
         self.state = state
         self.runner = runner
 
+    def _main_clean(self) -> bool:
+        """A coordinator closed mid-merge would leave it half done."""
+        return not subprocess.run(["git", "-C", str(self.main), "status", "--porcelain", "--untracked-files=no"],
+                                  capture_output=True, text=True).stdout.strip()
+
     def close(self) -> bool:
-        """Only with a clean main: a coordinator closed mid-merge would leave it half done."""
-        if subprocess.run(["git", "-C", str(self.main), "status", "--porcelain", "--untracked-files=no"],
-                          capture_output=True, text=True).stdout.strip():
-            return False
-        return self.runner.close_coordinator(self.state)
+        return self._main_clean() and self.runner.close_coordinator(self.state)
+
+    def close_session(self, pane: str) -> bool:
+        return self._main_clean() and self.runner.close_pane(pane)
 
     def start(self, account: str) -> bool:
         return subprocess.run([self.lineage, "round", "start-coordinator", account], cwd=self.main,
@@ -430,11 +452,12 @@ class Guard:
         own_pane = heartbeat_key(own_pane) if own_pane else None
         beats = self._heartbeats()
         # A closed pane leaves its last beat behind; only a pane that still runs an agent is another session.
-        live = {heartbeat_key(p) for p in self.runner.live_panes()}
-        others = [
-            max(0, now - s) for p, s in beats.items()
+        live = {heartbeat_key(p): p for p in self.runner.live_panes()}
+        other_panes = {
+            live[p]: max(0, now - s) for p, s in beats.items()
             if p != own_pane and p in live and now - s < COORDINATOR_QUIET
-        ]
+        }
+        others = list(other_panes.values())
         own = beats.get(own_pane, 0) if own_pane else 0
         watcher = (f"other watcher {min(others) // 60}m ago" if others else
                    f"own watcher {(now - own) // 60}m ago" if own else "no watcher")
@@ -451,6 +474,9 @@ class Guard:
 
         if status is None:
             if others:
+                if not self._active and self._choose(account, now) is None:
+                    return self._close_idle_sessions(other_panes, state, now, watcher)
+                state.pop("_sessions", None)
                 return f"coordinator: other session ({watcher})"
             return start("missing")
         if others:
@@ -480,6 +506,27 @@ class Guard:
             self.log(f"coordinator quiet without watcher: {'nudged' if succeeded else 'nudging FAILED'}")
             return f"coordinator {account} {status}, nudged ({watcher})"
         return f"coordinator {account} {status} ({watcher})"
+
+    def _close_idle_sessions(self, panes: dict[str, int], state: dict, now: int, watcher: str) -> str:
+        """With every account at its limit and no round running there is nothing to coordinate: a session
+        idle for half an hour is closed, and the guard starts a coordinator once an account has room."""
+        idle = state.setdefault("_sessions", {})
+        for pane in list(idle):
+            if pane not in panes:
+                idle.pop(pane)
+        closed = []
+        for pane in panes:
+            if self.runner.pane_status(pane) not in QUIET:
+                idle.pop(pane, None)
+                continue
+            since = idle.setdefault(pane, now)
+            if now - since >= COORDINATOR_QUIET and self.coordinator.close_session(pane):
+                idle.pop(pane)
+                closed.append(pane)
+                self.log(f"coordinator session {pane} closed: every account at its limit")
+        if closed:
+            return f"coordinator: session {', '.join(closed)} closed, every account full"
+        return f"coordinator: other session idle, every account full ({watcher})"
 
     def run_round(self, now: int) -> None:
         agents = self.runner.agent_status()
@@ -516,6 +563,9 @@ class _DryCoordinator:
         return True
 
     def close(self) -> bool:
+        return True
+
+    def close_session(self, pane: str) -> bool:
         return True
 
     def nudge(self) -> bool:
