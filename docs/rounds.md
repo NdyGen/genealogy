@@ -104,6 +104,8 @@ New CLI commands for the scripts:
 | `runner_start_coordinator <main> <account> <prompt>` | terminal `coordinator` | tab `coordinator`, its id in `<git-common-dir>/dr-coordinator.tab` | return 2 | return 2 |
 | `runner_start_guard <main> <command...>` | terminal `guard` (`DR_RUNNER=hc`) | tab `guard` | return 2 | return 2 |
 | `runner_guard_alive` (optional) | the terminal `guard` lives | not defined | not defined | not defined |
+| `runner_stop_guard` (optional) | closes the terminal `guard` | not defined | not defined | not defined |
+| `runner_cron_env` (optional, enables `start-guard --cron`) | `DR_RUNNER=hc` and `DR_HC_SPACE=<space of the caller>` | not defined | not defined | not defined |
 
 Status values: `working idle blocked done gone`. hc reports `idle working done blocked error` itself (OSC 7501);
 no status yet counts as `working` (booting), `error` as `idle` (the turn ended; the guard reads the screen
@@ -126,7 +128,9 @@ Placement in the app, chosen over making the round a sub-agent of the coordinato
   the coordinator's prompt. Instead they copy only the `herdr.space` label of the terminal that starts
   them: without `herdr.tab` the app opens a new tab, so each round, the coordinator and the guard get their
   own tab in the coordinator's space, as under herdr. The guard copies the space from the coordinator when
-  it is started and passes it on to rounds it resumes. The app keeps its layout in the hc document
+  it is started and passes it on to rounds it resumes. Run from cron (`start-guard --cron`) there is no starting terminal: the crontab line carries
+  `DR_HC_SPACE`, the space `start-guard --cron` was run from, and `DR_RUNNER=hc`, since `auto` would fall back to
+  `inline` outside a terminal. The app keeps its layout in the hc document
   `herdr-app` (spaces, their tabs and the terminals in them) and numbers a tab without a name, so the runner
   names the new tab there (`doc.set`, retried on a version conflict): `<ID> <person>` for a round,
   `coordinator` and `guard`. A tab someone already named keeps its name.

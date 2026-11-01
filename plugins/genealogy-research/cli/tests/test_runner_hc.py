@@ -233,3 +233,26 @@ def test_name_tab_names_only_the_terminals_own_unnamed_tab(core):
     assert r.returncode == 0, r.stderr
     names = [t["name"] for t in rpc("doc.get", {"name": "herdr-app"})["value"]["spaces"][0]["tabs"]]
     assert names == ["coordinator", "", "I7 Jan Jansen"]
+
+
+def test_guard_from_cron_places_terminals_in_the_space_it_was_set_up_in(core):
+    env, base = core
+    caller = json.loads(hc(env, "run", "--bg", "--name", "me", "--no-parent", "--label", "herdr.space=S1",
+                           "sleep", "300").stdout)["address"]
+    r = runner(env, base, "runner_cron_env", caller)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.split() == ["DR_RUNNER=hc", "DR_HC_SPACE=S1"]
+    r = runner(env, base, 'DR_HC_SPACE=S1 runner_start_coordinator "$ROOT" work go; echo "$RUNNER_WHERE"')
+    assert r.returncode == 0, r.stderr
+    assert terminal(env, r.stdout.split()[-1])["labels"]["herdr.space"] == "S1"
+
+
+def test_stop_guard_closes_its_terminal(core):
+    env, base = core
+    r = runner(env, base, """
+runner_start_guard "$ROOT" sleep 300
+runner_stop_guard
+runner_guard_alive && echo still || echo gone
+""")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.split() == ["gone"]

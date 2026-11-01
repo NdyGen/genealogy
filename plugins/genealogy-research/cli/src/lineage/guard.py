@@ -531,7 +531,8 @@ def run(root: Path, state: Path, interval: int = 120, once: bool = False,
         coordinator = _DryCoordinator() if dry_run else CoordinatorCli(lineage, root, state, backend)
     keeper = disk.Keeper(root, log, _notify, dry_run)
     guard = Guard(root, state, backend, starter, log, coordinator, keeper=keeper)
-    log(f"guard started ({runner} runner)")
+    if not once:
+        log(f"guard started ({runner} runner)")
     while True:
         now = int(time.time())
         try:

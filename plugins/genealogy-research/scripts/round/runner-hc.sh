@@ -42,9 +42,13 @@ s = s.get("state") if isinstance(s, dict) else s
 print("gone" if t.get("state") == "finished" else {None: "working", "error": "idle"}.get(s, s))' || echo gone
 }
 
-# The herdr.space label of the terminal this runs in. Without herdr.tab the app opens a new tab.
+# The herdr.space label of the terminal this runs in; outside a terminal (the guard from cron) DR_HC_SPACE.
+# Without herdr.tab the app opens a new tab.
 _hc_placement() {
-  [ -n "${HC_TERMINAL_ID:-}" ] || return 0
+  if [ -z "${HC_TERMINAL_ID:-}" ]; then
+    [ -z "${DR_HC_SPACE:-}" ] || echo "herdr.space=$DR_HC_SPACE"
+    return 0
+  fi
   hc get "$HC_TERMINAL_ID" --json 2>/dev/null | python3 -c '
 import json, sys
 space = json.load(sys.stdin).get("labels", {}).get("herdr.space")
@@ -305,6 +309,16 @@ runner_start_coordinator() {
 
 # Whether the project's guard terminal still lives; its heartbeat stays fresh for ten minutes after a kill.
 runner_guard_alive() { [ -n "$(_hc_terms lineage.role=guard)" ]; }
+
+runner_stop_guard() { _hc_terms lineage.role=guard | cut -f2 | while read -r a; do hc_close "$a"; done; }
+
+# Environment for the guard run from cron, where no terminal tells the runner or the space.
+runner_cron_env() {
+  echo DR_RUNNER=hc
+  local space
+  space=$(_hc_placement | sed -n 's/^herdr\.space=//p')
+  [ -z "$space" ] || echo "DR_HC_SPACE=$space"
+}
 
 runner_start_guard() {
   local main=$1 addr

@@ -60,10 +60,10 @@ Nothing runs in the background, so nothing needs to be stopped.
 
 1. **Open the project in the Herdr app** and start Claude in a terminal there: `cd <project> && claude`. In a Herdr app terminal (`HC_TERMINAL_ID` is set) the `auto` runner becomes `hc`.
 2. **Start the coordinator** in that session: `/genealogy-research:coordinate`.
-3. **Start the guard:** `lineage round start-guard`. It runs as the terminal "guard" and does what the guard under `herdr` below does.
+3. **Start the guard:** `lineage round start-guard`. It runs as the terminal "guard" and does what the guard under `herdr` below does. Or `lineage round start-guard --cron`: a crontab line runs one pass every two minutes, so no terminal has to stay open (new tabs go to the space you ran it from; `--no-cron` removes it).
 4. **Set the limits** as under `herdr` below.
 
-Every round is a terminal `dr-<id>` in its own tab `<ID> <person>` in the space of the session that started it (the coordinator's, or the guard's when it resumes a round); its helpers are child terminals of the round, so they show as its sub-agents and end with it. `hc ls` lists them; `hc attach dr-<id>` takes one over (ctrl+\\ detaches). To stop: end the coordinator session and `hc kill guard`.
+Every round is a terminal `dr-<id>` in its own tab `<ID> <person>` in the space of the session that started it (the coordinator's, or the guard's when it resumes a round); its helpers are child terminals of the round, so they show as its sub-agents and end with it. `hc ls` lists them; `hc attach dr-<id>` takes one over (ctrl+\\ detaches). To stop: end the coordinator session and `hc kill guard` (from cron: `lineage round start-guard --no-cron`).
 
 ### herdr
 
