@@ -69,6 +69,7 @@ class Runner(Protocol):
     def screen(self, name: str) -> str: ...
     def prompt(self, name: str, text: str) -> bool: ...
     def close_coordinator(self, state: Path) -> bool: ...
+    def close_round(self, id_: str, out: Path) -> bool: ...
 
 
 def heartbeat_key(pane: str) -> str:
@@ -106,6 +107,13 @@ class HerdrCli:
         subprocess.run(["herdr", "tab", "close", tab.read_text().strip()], capture_output=True)
         tab.unlink()
         return True
+
+    def close_round(self, id_: str, out: Path) -> bool:
+        tab = marker(out, "runner-tab")
+        if not tab:
+            return False
+        return subprocess.run(["herdr", "tab", "close", tab.read_text().strip()],
+                              capture_output=True).returncode == 0
 
 
 # hc reports no status for a program that has not reported yet (booting); an error ends a turn like idle,
@@ -165,6 +173,13 @@ class HcCli:
         self._hc("kill", address)
         self._hc("rm", address)
         return True
+
+    def close_round(self, id_: str, out: Path) -> bool:
+        terminals = self._terminals(f"lineage.project={self.project}", f"lineage.round={id_}")
+        for t in terminals:
+            self._hc("kill", t["address"])
+            self._hc("rm", t["address"])
+        return bool(terminals)
 
 
 RUNNERS = ("herdr", "hc")
@@ -359,7 +374,13 @@ class Guard:
             if choice and self._resume(id_, choice, out, "limit over"):
                 state[id_] = {}
                 return f"{status} -> resumed on {choice}"
-            return f"{status} waiting until {dt.datetime.fromtimestamp(mine['wait_until']):%d-%m %H:%M}"
+            waiting = f"{status} waiting until {dt.datetime.fromtimestamp(mine['wait_until']):%d-%m %H:%M}"
+            # A fresh leader resumes it anyway, so an idle screen only holds memory until then.
+            if leader in QUIET and all(agents[h] in QUIET for h in helpers) and self.runner.close_round(id_, out):
+                self._active.discard(f"dr-{idl}")
+                self.log(f"{id_} closed while waiting for the limit")
+                return f"{waiting}, closed"
+            return waiting
 
         if leader is None:
             mine["gone"] = mine.get("gone", 0) + 1
@@ -446,7 +467,13 @@ class Guard:
         reset = self._limit_on([COORDINATOR], dt.datetime.fromtimestamp(now), account)
         if reset is not None:
             self._record_limit(account, reset)
-            return start(f"limit {account}")
+            result = start(f"limit {account}")
+            # The guard starts a new one once an account has room; until then the screen only holds memory.
+            if result.endswith("every account full") and self.coordinator.close():
+                state.pop("_coordinator", None)
+                self.log(f"coordinator limit {account}: closed until an account has room")
+                return f"{result}, closed"
+            return result
         if now - own >= COORDINATOR_QUIET and now - mine.get("nudged", 0) >= COORDINATOR_QUIET:
             succeeded = self.coordinator.nudge()
             mine["nudged"] = now

@@ -77,6 +77,7 @@ class World:
         self.agents = {}
         self.screens = {}
         self.resumed = []
+        self.closed = []
         self.sessions = {"w1:p-other"}
 
     def research(self, id_, account="work", done=False):
@@ -98,6 +99,12 @@ class World:
 
     def screen(self, name):
         return self.screens.get(name, "")
+
+    def close_round(self, id_, out):
+        self.closed.append(id_)
+        for name in [n for n in self.agents if n == f"dr-{id_.lower()}" or n.startswith(f"{id_.lower()}-")]:
+            del self.agents[name]
+        return True
 
     def resume_stub(self, id_, account, out):
         self.resumed.append((id_, account))
@@ -135,6 +142,35 @@ def test_both_accounts_full_waits_then_resumes_after_reset(tmp_path):
     assert w.resumed == []
     run_round(w, tmp_path, ts(2026, 10, 3, 15, 1))
     assert w.resumed == [("I1", "work")]
+
+
+def test_a_round_waiting_for_the_limit_is_closed_until_it_resumes(tmp_path):
+    w = World(tmp_path)
+    w.research("I1")
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / "dr-limit-personal").write_text(str(ts(2026, 10, 8, 14, 0)))
+    w.agents.update({"dr-i1": "idle", "i1-search-01": "idle"})
+    w.screens["dr-i1"] = "You've hit your session limit · resets 3pm"
+    run_round(w, tmp_path, ts(2026, 10, 3, 11, 0))
+    assert w.closed == []
+    run_round(w, tmp_path, ts(2026, 10, 3, 11, 2))
+    assert w.closed == ["I1"] and w.agents == {}
+    run_round(w, tmp_path, ts(2026, 10, 3, 11, 4))
+    assert w.closed == ["I1"] and w.resumed == []
+    run_round(w, tmp_path, ts(2026, 10, 3, 15, 1))
+    assert w.resumed == [("I1", "work")]
+
+
+def test_a_waiting_round_with_a_working_helper_stays_open(tmp_path):
+    w = World(tmp_path)
+    w.research("I1")
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / "dr-limit-personal").write_text(str(ts(2026, 10, 8, 14, 0)))
+    w.agents.update({"dr-i1": "idle", "i1-search-01": "working"})
+    w.screens["dr-i1"] = "You've hit your session limit · resets 3pm"
+    for minute in (0, 2):
+        run_round(w, tmp_path, ts(2026, 10, 3, 11, minute))
+    assert w.closed == []
 
 
 def test_a_waiting_round_resumed_by_someone_else_is_left_alone(tmp_path):
@@ -272,6 +308,23 @@ def test_coordinator_on_a_limit_is_restarted_elsewhere(tmp_path):
     w.screens["coordinator"] = "You've hit your session limit · resets 3pm"
     coord_round(w, c, tmp_path, ts(2026, 10, 3, 13, 0), beat=ts(2026, 10, 3, 12, 0))
     assert c.started == ["personal"]
+
+
+def test_coordinator_on_a_limit_with_every_account_full_is_closed_and_started_after_reset(tmp_path):
+    w = World(tmp_path)
+    (tmp_path / ".worktrees").mkdir()
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / "dr-limit-personal").write_text(str(ts(2026, 10, 8, 14, 0)))
+    c = Coord(w)
+    w.agents["coordinator"] = "idle"
+    w.screens["coordinator"] = "You've hit your session limit · resets 3pm"
+    old = ts(2026, 10, 3, 12, 0)
+    coord_round(w, c, tmp_path, ts(2026, 10, 3, 13, 0), beat=old)
+    assert c.closed == 1 and c.started == [] and "coordinator" not in w.agents
+    coord_round(w, c, tmp_path, ts(2026, 10, 3, 14, 0), beat=old)
+    assert c.started == []
+    coord_round(w, c, tmp_path, ts(2026, 10, 3, 15, 1), beat=old)
+    assert c.started == ["work"]
 
 
 def test_idle_coordinator_without_heartbeat_is_nudged_once_per_half_hour(tmp_path):
@@ -553,6 +606,17 @@ def test_hc_coordinator_close_without_one_does_nothing(tmp_path, monkeypatch):
     calls = fake_hc(tmp_path, monkeypatch, [])
     assert not guard.HcCli(Path(PROJECT)).close_coordinator(tmp_path)
     assert "kill" not in calls.read_text()
+
+
+def test_hc_close_round_ends_the_rounds_terminals_only(tmp_path, monkeypatch):
+    calls = fake_hc(tmp_path, monkeypatch, [
+        own("t3", "dr-i1", "idle", **{"lineage.round": "I1"}),
+        own("t4", "i1-search-01", "idle", **{"lineage.round": "I1"}),
+        own("t5", "dr-i2", "idle", **{"lineage.round": "I2"}),
+    ])
+    assert guard.HcCli(Path(PROJECT)).close_round("I1", tmp_path)
+    killed = [line for line in calls.read_text().splitlines() if line.startswith("kill")]
+    assert killed == ["kill t3", "kill t4"]
 
 
 def test_hc_status_mapping():
