@@ -134,8 +134,13 @@ def _latest_year(events) -> int | None:
 
 
 def _latest_birth(person: Person, tree: Tree | None) -> int | None:
-    """Upper bound for the birth year: nobody is born after their own dated events or long before their children."""
+    """Upper bound for the birth year: nobody is born after their own dated events, long before their children
+    or more than a year after a parent's death (a brother found in a division of his late parents' estate)."""
     bounds = [_latest_year(person.events)]
+    families = [tree.families[f] for f in person.child_of if f in tree.families] if tree else []
+    for parent in (tree.persons[p] for f in families for p in f.partners if p in tree.persons):
+        death = _latest_year([e for e in parent.events if e.tag in ("DEAT", "BURI", "CREM")])
+        bounds.append(death + 1 if death else None)
     for family in tree.spouse_families(person.id) if tree else []:
         family_year = _latest_year(family.events)
         bounds.append(family_year - MIN_PARENT_AGE if family_year else None)

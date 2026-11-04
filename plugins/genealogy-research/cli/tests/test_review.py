@@ -175,3 +175,62 @@ def test_removed_rows_ignores_a_renamed_header():
     old = "plaats\tadres\nA\t\nB\t\n"
     new = "place\taddress\nA\t\n"
     assert review.removed_rows(old, new) == ["B\t"]
+
+
+def test_link_argued_proven_on_a_record_naming_the_kinship_is_left_to_the_review():
+    """Five rounds in a row the FAMC warning was a false alarm on a link whose own NOTE opens with "proven" and
+    cites the division that names the parents, with QUAY 2 or 3: the leader decided on purpose. A link without
+    such a NOTE, or with "not proven", is still reported."""
+    old = ged("0 @I1@ INDI", "1 NAME John /Faber/", "0 @F1@ FAM")
+    child = ("0 @I1@ INDI", "1 NAME John /Faber/", "1 FAMC @F1@", "2 SOUR @S1@", "3 QUAY {q}",
+             "2 NOTE {note}", "1 NOTE Identification: patronymic and birthplace.", "0 @F1@ FAM", "1 CHIL @I1@")
+    argued = "Proven: the division of 1635 names John son of Paul. That he is our John rests on two features."
+    for q in (2, 3):
+        assert review.derived_links(old, ged(*(r.format(q=q, note=argued) for r in child))) == []
+    weak = ged(*(r.format(q=2, note="Not proven: the division names John son of Paul.") for r in child))
+    assert review.derived_links(old, weak) == [("I1", "F1")]
+    unsourced = ged(*(r.format(q=0, note=argued) for r in child))
+    assert review.derived_links(old, unsourced) == [("I1", "F1")]
+
+
+def test_skipped_as_possibly_living_while_the_round_dated_him():
+    """`queue add` skipped a brother as possibly living before the round gave him a birth bound of 1635."""
+    old_queue = QUEUE_HEADER + "\nI1\tin_progress\t1\t1\t\t\t\t500001-500999\t"
+    row = "\nI2\tskipped\t5\t2\tI1\tbrother, division 1635; possibly living, do not research\t2026-11-04\t\t"
+    new = ged(*FAMILY, "0 @I2@ INDI", "1 BIRT", "2 DATE BEF 15 JAN 1635")
+    assert review.skipped_but_old(old_queue, old_queue + row, new) == ["I2"]
+    young = ged(*FAMILY, "0 @I2@ INDI", "1 BIRT", "2 DATE 1950")
+    assert review.skipped_but_old(old_queue, old_queue + row, young) == []
+    on_purpose = row.replace("possibly living, do not research", "died young, both records found")
+    assert review.skipped_but_old(old_queue, old_queue + on_purpose, new) == []
+    assert any("I2 skipped as possibly living" in w for w in check(ged(*FAMILY), new, queue_new=old_queue + row).warnings)
+
+
+def test_queue_reason_with_another_grade_than_the_report():
+    """The queue said "possibly father of", the report "presumed" for the same claim about the same ID."""
+    old_queue = QUEUE_HEADER + "\nI1\tin_progress\t1\t1\t\t\t\t500001-500999\t"
+    new_queue = old_queue + "\nI5\topen\t5\t2\tI1\tbrother; possibly father of Kate (I8)\t2026-11-04\t\t"
+    report = "- **Lost ancestry (presumed):** no link of Kate (I8) to I5.\n| I5 | Ansel | brother | possibly father of Kate | 5 |"
+    found = review.grade_mismatch(old_queue, new_queue, {"report": report})
+    assert len(found) == 1 and "presumed" in found[0]
+    same = report.replace("(presumed)", "(possible)")
+    assert review.grade_mismatch(old_queue, new_queue, {"report": same}) == []
+    two_claims = "Parents proven; I5 probably the elder brother, possibly father of Kate."
+    assert review.grade_mismatch(old_queue, new_queue, {"report": two_claims}) == []
+    living = new_queue.replace("possibly father of Kate (I8)", "possibly living, do not research")
+    assert review.grade_mismatch(old_queue, living, {"report": report}) == []
+
+
+def test_new_mail_question_while_the_report_calls_a_source_unread():
+    """A mail goes out only when every other source is exhausted; a round asked for one while its own report
+    still listed four online inventories as unread."""
+    question = "- [ ] I1 John Faber [mail: National Archive]: muster rolls of his company."
+    report = "- **Billeting lists inv. 930-933:** unread, 1200 scans.\n- **Court rolls 1002:** not online yet, not read."
+    assert review.mail_while_unread(question, report) == ["- **Billeting lists inv. 930-933:** unread, 1200 scans."]
+    assert review.mail_while_unread(question, report, questions_old=question + " Older text.") == []
+    assert review.mail_while_unread("- [ ] I1 John Faber: muster rolls.", report) == []
+    dutch = "- **Inkwartiering inv. 930-933:** ongelezen. *(Achterhaald: gelezen op 4-11.)*"
+    assert review.mail_while_unread(question, dutch) == []
+    u = check(ged(*FAMILY), ged(*FAMILY), report_new="Round on personal, 0 recognitions.\n" + report,
+              questions_new=question)
+    assert any("[mail: ...]" in w for w in u.warnings)

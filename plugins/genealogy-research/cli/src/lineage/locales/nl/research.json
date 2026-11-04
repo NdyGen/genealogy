@@ -88,5 +88,9 @@
   "event": "gebeurtenis",
   "error": "fout",
   "warning": "waarschuwing",
-  "info": "info"
+  "info": "info",
+  "open questions": "open vragen",
+  "{pid}: queue reason '{reason}', but {where} says: {sentence}": "{pid}: wachtrijreden '{reason}', maar {where} zegt: {sentence}",
+  "queue: {pid} skipped as possibly living, but the tree now dates him or her before {year}: set to open?": "wachtrij: {pid} overgeslagen als mogelijk nog in leven, maar de stamboom dateert hem of haar nu vóór {year}: op open zetten?",
+  "open questions: a new [mail: ...] question, while the report still calls a source unread: {sentence}": "open vragen: een nieuwe vraag met [mail: ...], terwijl het rapport nog een bron ongelezen noemt: {sentence}"
 }

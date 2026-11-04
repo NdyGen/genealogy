@@ -72,6 +72,33 @@ def test_undated_person_with_old_events_or_children_is_not_living():
     assert queue.add(items, tree, "I4", today=TODAY)[0].status == "skipped"
 
 
+def test_undated_child_of_parents_dead_long_ago_is_not_living():
+    """A brother named in the division of his late parents' estate had no dates yet when he was queued and was
+    skipped as possibly living; he cannot be born more than a year after a parent died."""
+    tree = parse(
+        ged(
+            "0 @I1@ INDI",
+            "1 DEAT Y",
+            "2 DATE BEF 15 JAN 1635",
+            "1 FAMS @F1@",
+            "0 @I2@ INDI",
+            "1 FAMC @F1@",
+            "0 @I3@ INDI",
+            "1 FAMS @F2@",
+            "0 @I4@ INDI",
+            "1 FAMC @F2@",
+            "0 @F1@ FAM",
+            "1 HUSB @I1@",
+            "1 CHIL @I2@",
+            "0 @F2@ FAM",
+            "1 WIFE @I3@",
+            "1 CHIL @I4@",
+        )
+    )
+    assert not queue.possibly_living(tree.persons["I2"], tree)
+    assert queue.possibly_living(tree.persons["I4"], tree)
+
+
 def test_start_assigns_distinct_id_blocks(tree):
     items = {}
     for pid in ("I2", "I6"):

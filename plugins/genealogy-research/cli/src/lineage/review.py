@@ -18,7 +18,7 @@ from lineage import settings
 from lineage.coordinates import TABLE
 from lineage.gedcom import parse
 from lineage.i18n import t
-from lineage.queue import LEGACY_COLUMNS
+from lineage.queue import LEGACY_COLUMNS, LIVING_CUTOFF_YEAR, possibly_living
 
 _RECORD = re.compile(r"^0 @([^@]+)@ ")
 _POINTER = re.compile(r"@([IF]\d+)@")
@@ -32,6 +32,11 @@ _DERIVED = re.compile(
 _PARENTS_NAMED = re.compile(
     r"beide ouders|vader en moeder|ouders genoemd|both parents|father and mother|parents named",
     re.IGNORECASE,
+)
+_PROVEN = re.compile(r"\b(?:bewezen|proven)\b", re.IGNORECASE)
+_NOT_PROVEN = re.compile(r"\bniet bewezen\b|\bnot proven\b|\bonbewezen\b|\bunproven\b", re.IGNORECASE)
+_NAMES_RELATION = re.compile(
+    r"\bnoem(?:t|en|de|den)\b|verwantschap|\bnames?\b|\bnamed\b|relationship", re.IGNORECASE
 )
 _QUOTE = re.compile(r'["“„]([^"“”„]{20,})["”]')
 _HELPER_READING = re.compile(
@@ -50,6 +55,28 @@ _SENTENCE = re.compile(r"(?<=[.!?])\s+(?=[A-Z0-9\"“„(])")
 _OFF_SCALE = re.compile(
     r"\b(aantoonbaar|vrijwel zeker|bijna zeker|ongetwijfeld|zonder twijfel"
     r"|demonstrabl[ey]|almost certain(?:ly)?|nearly certain|undoubtedly|without (?:a )?doubt)\b",
+    re.IGNORECASE,
+)
+# The scale below "proven": "proven" is left out because a sentence often proves one thing (the parents) and
+# grades another (a brother's child), which would give false alarms.
+_GRADES = {
+    "waarschijnlijk": "probable", "probable": "probable", "probably": "probable",
+    "vermoedelijk": "presumed", "presumably": "presumed", "presumed": "presumed",
+    "mogelijk": "possible", "possible": "possible", "possibly": "possible",
+}  # fmt: skip
+_GRADE = re.compile(r"\b(" + "|".join(_GRADES) + r")\b", re.IGNORECASE)
+_NOT_A_GRADE = re.compile(
+    r"\b(?:niet|zo|waar|indien|zoveel|zo veel) mogelijk\b|\bmogelijk (?:nog )?(?:in )?leven\w*|\bmogelijk levend"
+    r"|\b(?:if|where|as \w+ as|not) possible\b|\bpossibly (?:still )?(?:living|alive)",
+    re.IGNORECASE,
+)
+_UNREAD = re.compile(
+    r"\bongelezen\b|\bniet (?:gelezen|ingezien|doorzocht|doorgebladerd)\b"
+    r"|\bunread\b|\bnot (?:yet )?(?:read|searched|browsed)\b",
+    re.IGNORECASE,
+)
+_SUPERSEDED = re.compile(
+    r"achterhaald|superseded|niet online|not online|niet gescand|not scanned|niet gedigitaliseerd|not digiti[sz]ed",
     re.IGNORECASE,
 )
 _MAX_LINE = 255
@@ -219,6 +246,19 @@ def _link_lines(lines: list[str], fam: str) -> list[str]:
     return out
 
 
+def _argued_proven(block: list[str]) -> bool:
+    """The link's own NOTE opens with "proven" and cites a record naming the relationship, under a source of
+    QUAY 2 or 3: the leader made the case A or proven call on purpose and the reviewing agent weighs it. Five
+    rounds in a row the warning was a false alarm on exactly such links."""
+    note = _joined_notes(block).strip()
+    first = _SENTENCE.split(note, 1)[0]
+    return (
+        any(line in ("3 QUAY 2", "3 QUAY 3") for line in block)
+        and bool(_PROVEN.search(first)) and not _NOT_PROVEN.search(first)
+        and bool(_NAMES_RELATION.search(note))
+    )
+
+
 def derived_links(old: str, new: str) -> list[tuple[str, str]]:
     """New FAMC links presented as proven (no QUAY 1 under the link) while a NOTE of the child reasons its
     identity from traits: that is case A of a probable link and needs the marking and a decision."""
@@ -227,11 +267,85 @@ def derived_links(old: str, new: str) -> list[tuple[str, str]]:
     for xref, lines in after.items():
         old_blocks = _famc_blocks(before.get(xref, []))
         for fam, block in _famc_blocks(lines).items():
-            if fam in old_blocks or "3 QUAY 1" in block:
+            if fam in old_blocks or "3 QUAY 1" in block or _argued_proven(block):
                 continue
             sentences = _SENTENCE.split(_joined_notes(_link_lines(lines, fam)))
             if any(_DERIVED.search(s) and not _PARENTS_NAMED.search(s) for s in sentences):
                 found.append((xref, fam))
+    return found
+
+
+def _grades(text: str) -> set[str]:
+    return {_GRADES[w.lower()] for w in _GRADE.findall(_NOT_A_GRADE.sub(" ", text))}
+
+
+def _changed_rows(queue_old: str, queue_new: str) -> list[dict[str, str]]:
+    def rows(text: str) -> list[dict[str, str]]:
+        if not text.strip():
+            return []
+        header, *lines = text.splitlines()
+        columns = [LEGACY_COLUMNS.get(c, c) for c in header.split("\t")]
+        return [dict(zip(columns, r.split("\t"), strict=False)) for r in lines if r.strip()]
+
+    old = {r.get("id"): r for r in rows(queue_old)}
+    return [r for r in rows(queue_new) if old.get(r.get("id")) != r]
+
+
+def grade_mismatch(queue_old: str, queue_new: str, texts: dict[str, str]) -> list[str]:
+    """A queue reason this round wrote with one word of the scale, while a sentence of the report or a new
+    question about the same ID uses another one: the same claim got two grades (wachtrij "mogelijk vader",
+    report "vermoedelijk"). Only sentences with a single grade count, so a sentence that grades two
+    different claims is left alone."""
+    found = []
+    for row in _changed_rows(queue_old, queue_new):
+        pid, reason = row.get("id", ""), row.get("reason", "")
+        if len(grades := _grades(reason)) != 1:
+            continue
+        mention = re.compile(r"\b" + re.escape(pid) + r"\b")
+        for where, text in texts.items():
+            for line in text.splitlines():
+                for sentence in _SENTENCE.split(line):
+                    other = _grades(sentence)
+                    if mention.search(sentence) and len(other) == 1 and other != grades:
+                        found.append(t(
+                            "{pid}: queue reason '{reason}', but {where} says: {sentence}",
+                            pid=pid, reason=reason[:80], where=where, sentence=" ".join(sentence.split())[:140],
+                        ))
+    return found
+
+
+def skipped_but_old(queue_old: str, queue_new: str, ged_new: str) -> list[str]:
+    """Queue items this round skipped as possibly living while the tree at the end of the round dates them long
+    ago: `queue add` judged them before the round added a birth bound or the parents' deaths."""
+    markers = {"possibly living", t("{reason}; possibly living, do not research", reason="").strip("; ")}
+    markers |= {m.split(",")[0] for m in markers}
+    tree = parse(ged_new)
+    found = []
+    for row in _changed_rows(queue_old, queue_new):
+        person = tree.persons.get(row.get("id", ""))
+        reason = row.get("reason", "")
+        if row.get("status") == "skipped" and person and any(m in reason for m in markers) \
+                and not possibly_living(person, tree):
+            found.append(person.id)
+    return found
+
+
+def _mail_tags(text: str) -> set[str]:
+    """Each [mail: ...] question as the text up to its tag, so rewording the question after it is no new one."""
+    return {" ".join(m.group(0).split()) for m in re.finditer(r"^.*?\[mail:[^\]]*\]", text, re.MULTILINE)}
+
+
+def mail_while_unread(questions_new: str, report_new: str, questions_old: str = "") -> list[str]:
+    """Sentences of the report that still call a source unread, in a round that adds a [mail: ...] question:
+    a mail only goes out when every other source is exhausted. A source that is not online is no reason to
+    wait."""
+    if not _mail_tags(questions_new) - _mail_tags(questions_old):
+        return []
+    found = []
+    for line in report_new.splitlines():
+        flat = " ".join(line.split())
+        if (m := _UNREAD.search(flat)) and not _SUPERSEDED.search(flat):
+            found.append(flat[max(0, m.start() - 100):m.end() + 60])
     return found
 
 
@@ -329,8 +443,11 @@ def check(
     htr: int,
     report_full: str = "",
     story: str = "",
+    questions_new: str = "",
+    questions_old: str = "",
 ) -> Outcome:
-    """`report_new` is only the text this branch added to the report, `report_full` the whole report."""
+    """`report_new` is only the text this branch added to the report, `report_full` the whole report,
+    `questions_new` the lines it added to the open questions, `questions_old` those questions before."""
     u = Outcome()
     for row in removed_rows(coords_old, coords_new):
         u.errors.append(t("coordinate table: row removed or changed (only adding is allowed): {row}", row=row[:120]))
@@ -361,6 +478,19 @@ def check(
         u.warnings.append(t("{xref}: program line '{line}' removed", xref=x, line=line))
     for x, ev in old_values_elsewhere(ged_old, ged_new):
         u.warnings.append(t("{xref} still has '{event}', a value this round corrected elsewhere", xref=x, event=ev))
+    for x in skipped_but_old(queue_old, queue_new, ged_new):
+        u.warnings.append(t(
+            "queue: {pid} skipped as possibly living, but the tree now dates him or her before {year}: set to open?",
+            pid=x, year=LIVING_CUTOFF_YEAR,
+        ))
+    u.warnings.extend(grade_mismatch(
+        queue_old, queue_new, {t("report"): report_new, t("open questions"): questions_new},
+    ))
+    for sentence in mail_while_unread(questions_new, report_new, questions_old)[:3]:
+        u.warnings.append(t(
+            "open questions: a new [mail: ...] question, while the report still calls a source unread: {sentence}",
+            sentence=sentence,
+        ))
     for paragraph in re.split(r"\n\s*\n", report_new):
         lowered = paragraph.lower()
         helper = "hulpagent" in lowered or "helper agent" in lowered
@@ -424,11 +554,16 @@ def review_branch(root: Path, pid: str) -> Outcome:
         raise ValueError(t("branch {branch} not found", branch=branch))
     project = settings.current()
     report = f"{project.rel('person_reports').as_posix()}/{pid}.md"
-    added = "\n".join(
-        r[1:]
-        for r in _git(root, "diff", f"{base}..{branch}", "--", report).splitlines()
-        if r.startswith("+") and not r.startswith("+++")
-    )
+
+    def added_lines(path: str) -> str:
+        return "\n".join(
+            r[1:]
+            for r in _git(root, "diff", f"{base}..{branch}", "--", path).splitlines()
+            if r.startswith("+") and not r.startswith("+++")
+        )
+
+    added = added_lines(report)
+    questions = added_lines(project.rel("questions").as_posix())
     common = Path(_git(root, "rev-parse", "--path-format=absolute", "--git-common-dir").strip())
     wt = common.parent / ".worktrees" / f"dr-{pid}"
     report_full = _show(root, branch, report)
@@ -455,5 +590,5 @@ def review_branch(root: Path, pid: str) -> Outcome:
         show(base, gedcom.as_posix()), show(branch, gedcom.as_posix()),
         show(base, queue), show(branch, queue),
         show(base, *coordinates), show(branch, *coordinates),
-        added, account, htr, report_full, story,
+        added, account, htr, report_full, story, questions, show(base, project.rel("questions").as_posix()),
     )
