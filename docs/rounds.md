@@ -130,13 +130,16 @@ Placement in the app, chosen over making the round a sub-agent of the coordinato
   own tab in the coordinator's space, as under herdr. The guard copies the space from the coordinator when
   it is started and passes it on to rounds it resumes. Run from cron (`start-guard --cron`) there is no starting terminal: the crontab line carries
   `DR_HC_SPACE`, the space `start-guard --cron` was run from, and `DR_RUNNER=hc`, since `auto` would fall back to
-  `inline` outside a terminal. The app keeps its layout in the hc document
+  `inline` outside a terminal. A space that is no longer in the app's layout (removed or reorganised since)
+  would hide the new tab, so then the runner takes the space where the app shows a live terminal of the
+  project, or leaves the choice to the app. The app keeps its layout in the hc document
   `herdr-app` (spaces, their tabs and the terminals in them) and numbers a tab without a name, so the runner
   names the new tab there (`doc.set`, retried on a version conflict): `<ID> <person>` for a round,
   `coordinator` and `guard`. A tab someone already named keeps its name.
 - A helper is a child of its leader (`--parent $HC_TERMINAL_ID --no-notify`): it shows as the leader's
   sub-agent, ends when the leader is stopped, and hc types no notes into the leader while `helper.sh` already
-  waits for it.
+  waits for it. The app lays out only terminals without a parent, so the runner adds the helper as a pane to
+  its leader's tab in `herdr-app` and takes it out again when it closes the helper (never emptying a tab).
 
 The guard (`lineage guard --runner hc`, default from `lineage config runner`) uses the same labels. A
 `lineage round watch` heartbeat is keyed by `HC_TERMINAL_ID` (falling back to `HERDR_PANE_ID`), with `:` and

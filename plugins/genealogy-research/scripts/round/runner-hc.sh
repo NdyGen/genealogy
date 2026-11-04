@@ -10,7 +10,7 @@
 # starts them: each gets its own tab in the coordinator's space, as under herdr. The app keeps its layout in
 # the hc document herdr-app (spaces, their tabs and the terminals in them); _hc_name_tab names the new tab
 # there, since the app numbers an unnamed one. A helper is a child of its leader: it
-# ends with the leader, shows as its sub-agent, and --no-notify keeps hc from typing notes into the
+# ends with the leader, shows as its sub-agent and as a pane in its tab (_hc_pane), and --no-notify keeps hc from typing notes into the
 # leader's prompt while helper.sh already waits for it.
 
 # name<TAB>address<TAB>status of the project's live terminals carrying all given labels (--all first: the
@@ -43,17 +43,39 @@ print("gone" if t.get("state") == "finished" else {None: "working", "error": "id
 }
 
 # The herdr.space label of the terminal this runs in; outside a terminal (the guard from cron) DR_HC_SPACE.
+# A space the app no longer has (removed or reorganised since start-guard --cron) would hide the new tab, so
+# then it takes the space where the app shows a live terminal of this project, or leaves the choice to the app.
 # Without herdr.tab the app opens a new tab.
 _hc_placement() {
-  if [ -z "${HC_TERMINAL_ID:-}" ]; then
-    [ -z "${DR_HC_SPACE:-}" ] || echo "herdr.space=$DR_HC_SPACE"
-    return 0
-  fi
-  hc get "$HC_TERMINAL_ID" --json 2>/dev/null | python3 -c '
+  local wanted=${DR_HC_SPACE:-} doc project
+  if [ -n "${HC_TERMINAL_ID:-}" ]; then
+    wanted=$(hc get "$HC_TERMINAL_ID" --json 2>/dev/null | python3 -c '
 import json, sys
-space = json.load(sys.stdin).get("labels", {}).get("herdr.space")
-if space:
-    print("herdr.space=" + space)' || true
+print(json.load(sys.stdin).get("labels", {}).get("herdr.space") or "")') || wanted=
+  fi
+  doc=$(printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"doc.get","params":{"name":"herdr-app"}}' \
+        | hc connect 2>/dev/null | head -1) || doc=
+  project=$(_hc_terms | cut -f2 | paste -sd,) || project=
+  python3 -c '
+import json, sys
+
+wanted, doc, project = sys.argv[1], sys.argv[2], set(filter(None, sys.argv[3].split(",")))
+try:
+    spaces = ((json.loads(doc).get("result") or {}).get("value") or {}).get("spaces")
+except ValueError:
+    spaces = None
+
+def terminals(node):
+    if (node.get("content") or {}).get("terminal"):
+        yield node["content"]["terminal"]
+    for child in node.get("children", []):
+        yield from terminals(child)
+
+if spaces and wanted not in {sp.get("id") for sp in spaces}:
+    wanted = next((sp["id"] for sp in spaces for tab in sp.get("tabs", [])
+                   if project & set(terminals(tab.get("root", {})))), "")
+if wanted:
+    print("herdr.space=" + wanted)' "$wanted" "$doc" "$project" || true
 }
 
 # _hc_name_tab <address> <title>: names the app's tab that holds only this terminal, once the app has made
@@ -90,6 +112,50 @@ while time.time() < deadline:
             break
         continue
     time.sleep(2)' "$1" "$2" >/dev/null 2>&1 || true
+}
+
+# _hc_pane add <leader> <address> | _hc_pane remove <address>: puts a helper as a pane in the app's tab of its
+# leader, or takes it out again. The app only lays out terminals that have no hc parent; a tab is never emptied.
+_hc_pane() {
+  python3 -c '
+import json, secrets, subprocess, sys
+
+op, args = sys.argv[1], sys.argv[2:]
+
+def call(method, params):
+    req = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+    out = subprocess.run(["hc", "connect"], input=req + "\n", capture_output=True, text=True, timeout=15).stdout
+    return json.loads(out.splitlines()[0])
+
+def terminals(node):
+    if (node.get("content") or {}).get("terminal"):
+        yield node["content"]["terminal"]
+    for child in node.get("children", []):
+        yield from terminals(child)
+
+def drop(node, addr):
+    node["children"] = [c for c in node.get("children", [])
+                        if (c.get("content") or {}).get("terminal") != addr]
+    for child in node["children"]:
+        drop(child, addr)
+
+for _ in range(5):
+    doc = call("doc.get", {"name": "herdr-app"}).get("result") or {}
+    if not doc.get("value"):
+        break
+    changed = False
+    for tab in (t for sp in doc["value"].get("spaces", []) for t in sp.get("tabs", [])):
+        root = tab.get("root", {})
+        held = list(terminals(root))
+        if op == "add" and args[0] in held and args[1] not in held:
+            root.setdefault("children", []).append(
+                {"type": "block", "id": "p" + secrets.token_hex(16), "content": {"terminal": args[1]}})
+            changed = True
+        elif op == "remove" and args[0] in held and len(held) > 1:
+            drop(root, args[0])
+            changed = True
+    if not changed or "result" in call("doc.set", {"name": "herdr-app", "value": doc["value"], "version": doc["version"]}):
+        break' "$@" >/dev/null 2>&1 || true
 }
 
 # The env(1) arguments for a Claude terminal: hc starts programs in the core's environment, not the
@@ -155,6 +221,7 @@ print(t.get("state"), s, t.get("turn") or 0)') || return 1
 hc_close() {
   local addr
   for addr in "$@"; do
+    _hc_pane remove "$addr"
     hc kill "$addr" >/dev/null 2>&1 || true
     hc rm "$addr" >/dev/null 2>&1 || true
   done
@@ -217,6 +284,7 @@ print(sum(1 for t in json.load(sys.stdin)["terminals"] if t.get("agent") == "cla
   # Same account as the leader; the model comes from the agent definition, so ANTHROPIC_MODEL must not override it.
   HELPER_ADDR=$(hc_start "$name" "$wt" helper "$id" "${HC_TERMINAL_ID:-}" "${CLAUDE_CONFIG_DIR:-}" \
     claude --agent "$agent" --permission-mode auto "$prompt") || { lock_release "$lock"; HELPER_ADDR=; _fail "hc could not start the helper"; return 1; }
+  [ -z "${HC_TERMINAL_ID:-}" ] || _hc_pane add "$HC_TERMINAL_ID" "$HELPER_ADDR"
   hc_await_start "$HELPER_ADDR" 90 "$result" || { lock_release "$lock"; _fail "brief not picked up within 90 seconds"; return 1; }
   lock_release "$lock"
 

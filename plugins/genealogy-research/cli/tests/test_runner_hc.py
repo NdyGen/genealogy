@@ -235,6 +235,31 @@ def test_name_tab_names_only_the_terminals_own_unnamed_tab(core):
     assert names == ["coordinator", "", "I7 Jan Jansen"]
 
 
+def test_helper_pane_joins_its_leaders_tab_and_leaves_it_again(core):
+    env, base = core
+    leader, helper = (json.loads(hc(env, "run", "--bg", "--no-parent", "sleep", "300").stdout)["address"]
+                      for _ in range(2))
+
+    def rpc(method, params):
+        req = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+        return json.loads(subprocess.run(["hc", "connect"], input=req + "\n", env=env, capture_output=True,
+                                         text=True, check=True).stdout.splitlines()[0])["result"]
+
+    def tabs():
+        return [[c["content"]["terminal"] for c in t["root"]["children"]]
+                for t in rpc("doc.get", {"name": "herdr-app"})["value"]["spaces"][0]["tabs"]]
+
+    rpc("doc.set", {"name": "herdr-app", "version": 0, "value": {"spaces": [{"id": "S1", "tabs": [
+        {"id": "T1", "root": {"type": "row", "children": [{"type": "block", "content": {"terminal": "t99"}}]}},
+        {"id": "T2", "root": {"type": "row", "children": [{"type": "block", "content": {"terminal": leader}}]}}]}]}})
+    r = runner(env, base, f"_hc_pane add {leader} {helper}; _hc_pane add {leader} {helper}")
+    assert r.returncode == 0, r.stderr
+    assert tabs() == [["t99"], [leader, helper]]
+    r = runner(env, base, f"hc_close {helper}; _hc_pane remove {leader}")
+    assert r.returncode == 0, r.stderr
+    assert tabs() == [["t99"], [leader]]
+
+
 def test_guard_from_cron_places_terminals_in_the_space_it_was_set_up_in(core):
     env, base = core
     caller = json.loads(hc(env, "run", "--bg", "--name", "me", "--no-parent", "--label", "herdr.space=S1",
@@ -245,6 +270,22 @@ def test_guard_from_cron_places_terminals_in_the_space_it_was_set_up_in(core):
     r = runner(env, base, 'DR_HC_SPACE=S1 runner_start_coordinator "$ROOT" work go; echo "$RUNNER_WHERE"')
     assert r.returncode == 0, r.stderr
     assert terminal(env, r.stdout.split()[-1])["labels"]["herdr.space"] == "S1"
+
+
+def test_placement_from_cron_leaves_a_space_the_app_no_longer_has(core):
+    env, base = core
+    common = base / "repo.git"
+    ours = json.loads(hc(env, "run", "--bg", "--no-parent", "--label", f"lineage.project={common}",
+                         "sleep", "300").stdout)["address"]
+    req = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "doc.set", "params": {
+        "name": "herdr-app", "version": 0, "value": {"spaces": [
+            {"id": "S2", "tabs": [{"id": "T9", "root": {"type": "row", "children": []}}]},
+            {"id": "S3", "tabs": [{"id": "T1", "root": {"type": "row", "children": [
+                {"type": "block", "content": {"terminal": ours}}]}}]}]}}})
+    subprocess.run(["hc", "connect"], input=req + "\n", env=env, capture_output=True, text=True, check=True)
+    r = runner(env, base, "DR_HC_SPACE=S1 _hc_placement; echo -; DR_HC_SPACE=S2 _hc_placement")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.split() == ["herdr.space=S3", "-", "herdr.space=S2"]
 
 
 def test_stop_guard_closes_its_terminal(core):
