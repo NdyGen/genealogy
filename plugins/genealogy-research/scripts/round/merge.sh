@@ -113,6 +113,9 @@ echo "validate: $(lineage validate --level info | tail -1)"
 # Corrections made in one record often leave the same old fact in the stories of relatives.
 STALE=$(lineage stale --short | xargs) || STALE=""
 [ -z "$STALE" ] || echo "life stories that lag behind: $STALE"
+# A child's story tells of the parents' death too, which the plain check does not count.
+KIDS=$(lineage stale --short --children-of "$ID" | xargs) || KIDS=""
+[ -z "$KIDS" ] || echo "children's life stories that lag behind a parent: $KIDS"
 # Every so many merged rounds the coordinator turns the logged lessons into skill rules.
 COUNTER=$(state_read_path dr-rounds-since-improvement dr-rondes-sinds-verbeterronde)
 N=$(( $(cat "$COUNTER" 2>/dev/null || echo 0) + 1 ))

@@ -538,7 +538,11 @@ def cmd_stale(tree: Tree, args: argparse.Namespace) -> int:
         for pid in args.id:
             stale.mark_checked(_project().root, _person_id(tree, pid))
         return 0
-    stale_items = stale.stale_stories(tree, with_parents=args.direct_line)
+    if args.children_of:
+        kids = stale.children_of(tree, _person_id(tree, args.children_of))
+        stale_items = stale.stale_stories(tree, only=kids, parents_for=kids)
+    else:
+        stale_items = stale.stale_stories(tree, with_parents=args.direct_line)
     if args.id:
         stale_items = [s for s in stale_items if s.pid in {_person_id(tree, i) for i in args.id}]
     print(stale.report(tree, stale_items, short=args.short))
@@ -1213,6 +1217,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--direct-line",
         action="store_true",
         help="in the direct line (line_root) also count changes in the parents' family",
+    )
+    stale_parser.add_argument(
+        "--children-of",
+        metavar="ID",
+        help="only the stories of this person's children, counting changes to their parents' family too",
     )
     stale_parser.set_defaults(run=cmd_stale)
 

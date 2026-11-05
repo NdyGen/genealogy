@@ -179,8 +179,16 @@ def _rev_at(root: Path, when: int) -> str | None:
     return rev or None
 
 
-def stale_stories(tree: Tree, root: Path | None = None, with_parents: bool = False) -> list[Stale]:
-    """With with_parents, stories in the direct line also go stale on changes to the parents' family."""
+def stale_stories(
+    tree: Tree,
+    root: Path | None = None,
+    with_parents: bool = False,
+    only: Collection[str] | None = None,
+    parents_for: Collection[str] = (),
+) -> list[Stale]:
+    """With with_parents, stories in the direct line also go stale on changes to the parents' family;
+    parents_for does the same for the persons named, wherever they stand. only limits the stories looked at,
+    which also keeps the per-revision snapshots few."""
     cfg = settings.current()
     root = root or cfg.root
     line_root = cfg.root_person if with_parents else ""
@@ -188,9 +196,10 @@ def stale_stories(tree: Tree, root: Path | None = None, with_parents: bool = Fal
     current = _normalized_records(root, "HEAD")
     snapshots: dict[str, dict[str, str]] = {}
     direct_line = set(ancestors(tree, line_root)) if line_root in tree.persons else set()
+    direct_line |= set(parents_for)
     result = []
     for pid, story_time in sorted(story_times(root).items()):
-        if pid not in tree.persons:
+        if pid not in tree.persons or (only is not None and pid not in only):
             continue
         hits = [
             (rid, changes[rid])
@@ -222,6 +231,10 @@ def stale_stories(tree: Tree, root: Path | None = None, with_parents: bool = Fal
         result.append(stale)
     result.sort(key=lambda s: -s.change_time)
     return result
+
+
+def children_of(tree: Tree, pid: str) -> list[str]:
+    return [c.id for family in tree.spouse_families(pid) for c in tree.children(family)]
 
 
 def _date(ts: int) -> str:

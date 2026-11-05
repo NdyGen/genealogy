@@ -167,3 +167,23 @@ def test_report_in_dutch(tmp_path):
     text = stale.report(tree, [item])
     assert "verhaal " in text and "record gewijzigd " in text
     assert text.endswith("1 levensverhalen bij te werken")
+
+
+def test_children_of_counts_a_change_to_a_parent(tmp_path):
+    root = _repo(tmp_path)
+    (root / "reports/life-stories/I3.md").write_text("# John\n", encoding="utf-8")
+    _git(root, "add", ".")
+    _git(root, "commit", "-qm", "story I3")
+    time.sleep(1.1)
+    ged_path = root / "data/tree.ged"
+    ged_path.write_text(
+        ged_path.read_text(encoding="utf-8").replace("1 SEX M\n1 FAMS", "1 SEX M\n1 DEAT\n2 DATE 1784\n1 FAMS", 1),
+        encoding="utf-8",
+    )
+    _git(root, "commit", "-qam", "I1: died 1784")
+    tree = load(ged_path)
+    assert "I3" not in [s.pid for s in stale.stale_stories(tree, root)]
+    kids = stale.children_of(tree, "I1")
+    assert kids == ["I3"]
+    found = stale.stale_stories(tree, root, only=kids, parents_for=kids)
+    assert [s.pid for s in found] == ["I3"] and found[0].records == ["I1"]
