@@ -107,5 +107,6 @@
   "- Exception: {text}": "- Uitzondering: {text}",
   "Format: `- [ ] I123 Name: question (what was tried)`": "Formaat: `- [ ] I123 Naam: vraag (wat is al geprobeerd)`",
   "{key}: {pid} is not in the tree": "{key}: {pid} staat niet in de stamboom",
-  "# Open questions": "# Open vragen"
+  "# Open questions": "# Open vragen",
+  "lineage round: wrapper not found: {path}": "lineage round: wrapper niet gevonden: {path}"
 }

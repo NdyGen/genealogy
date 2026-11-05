@@ -335,6 +335,21 @@ def _mail_tags(text: str) -> set[str]:
     return {" ".join(m.group(0).split()) for m in re.finditer(r"^.*?\[mail:[^\]]*\]", text, re.MULTILINE)}
 
 
+def proven_next_to_helper(report: str) -> list[str]:
+    """Sentences (or list items) of the report that call something proven and name a helper's reading.
+    Per sentence, not per paragraph: a paragraph that proves a link on the lead's own reading and mentions a
+    helper only for a negative search or an unlinked sibling gave false alarms."""
+    found = []
+    for part in re.split(r"\n|(?<=[.;!?])\s+(?=[A-Z*(\"'])", report):
+        lowered = re.sub(r"['\"‘“](?:bewezen|proven)['\"’”]", "", part.lower())
+        helper = "hulpagent" in lowered or "helper agent" in lowered
+        proven = "bewezen" in lowered or "proven" in lowered
+        negated = "niet bewezen" in lowered or "not proven" in lowered
+        if helper and proven and not negated:
+            found.append(part.strip())
+    return found
+
+
 def mail_while_unread(questions_new: str, report_new: str, questions_old: str = "") -> list[str]:
     """Sentences of the report that still call a source unread, in a round that adds a [mail: ...] question:
     a mail only goes out when every other source is exhausted. A source that is not online is no reason to
@@ -491,16 +506,8 @@ def check(
             "open questions: a new [mail: ...] question, while the report still calls a source unread: {sentence}",
             sentence=sentence,
         ))
-    for paragraph in re.split(r"\n\s*\n", report_new):
-        lowered = paragraph.lower()
-        helper = "hulpagent" in lowered or "helper agent" in lowered
-        proven = "bewezen" in lowered or "proven" in lowered
-        negated = "niet bewezen" in lowered or "not proven" in lowered
-        if helper and proven and not negated:
-            u.warnings.append(t(
-                    "report: 'proven' next to a helper agent's reading: {paragraph}",
-                    paragraph=paragraph.strip()[:160],
-                ))
+    for sentence in proven_next_to_helper(report_new):
+        u.warnings.append(t("report: 'proven' next to a helper agent's reading: {paragraph}", paragraph=sentence[:160]))
     for x, fam in derived_links(ged_old, ged_new):
         u.warnings.append(
             t(

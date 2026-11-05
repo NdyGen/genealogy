@@ -18,6 +18,7 @@ Language: read `lineage config value language` and write the life story in that 
 ## Rules
 
 - **Only what is in the report.** Add no facts. Context from "Time and place" is allowed but must stay recognisable as context. Phrase interpretation as interpretation ("it seems that"). For a claim that is not established, use the same word of the certainty scale as the report (proven, probable, presumed, possible; see the report reference), not a stronger or weaker word.
+- **Not more precise than the report.** Dates, intervals, residences and who wrote a record are taken as the report gives them: a burial date is not a death date, "just over seven months" is not "eight months", a baptism without a residence does not say where the father lived, and "the register names him" unless the report names the clerk.
 - If the report contradicts itself or lacks something you need, do not write around it but say so in the result file.
 - Do not change the GEDCOM, the queue, the research folder or the report, and commit nothing.
 - For persons use only `lineage person <ID>`; do not open the GEDCOM directly. Never read or name data of living persons beyond what the project file allows.

@@ -1582,8 +1582,21 @@ def _file_first(argv: list[str]) -> list[str]:
     return argv
 
 
+def _round_wrapper() -> Path:
+    return Path(os.environ.get("LINEAGE_BIN") or Path(__file__).resolve().parents[3] / "bin" / "lineage")
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(_file_first(sys.argv[1:] if argv is None else argv))
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["round"]:
+        # The round commands are shell scripts behind the plugin's wrapper; the venv's own `lineage`, first on
+        # PATH in some shells, would otherwise answer "invalid choice: 'round'".
+        wrapper = _round_wrapper()
+        if not wrapper.is_file():
+            print(t("lineage round: wrapper not found: {path}", path=wrapper), file=sys.stderr)
+            return 2
+        os.execv(str(wrapper), [str(wrapper), *argv])
+    args = build_parser().parse_args(_file_first(argv))
     try:
         return _run(args)
     except settings.ConfigError as exc:

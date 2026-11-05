@@ -234,3 +234,24 @@ def test_new_mail_question_while_the_report_calls_a_source_unread():
     u = check(ged(*FAMILY), ged(*FAMILY), report_new="Round on personal, 0 recognitions.\n" + report,
               questions_new=question)
     assert any("[mail: ...]" in w for w in u.warnings)
+
+
+def test_proven_and_helper_in_one_sentence_is_reported():
+    report = "**Parents (proven).** Baptism 1647 read by a helper agent, not re-read."
+    assert review.proven_next_to_helper(report) == [report]
+    report = "Parents proven on the baptism of 1647, a helper agent's reading."
+    assert review.proven_next_to_helper(report) == [report]
+
+
+def test_helper_in_another_sentence_or_list_item_is_quiet():
+    report = (
+        "Identification proven on the baptism (read myself, scan 0046, fol. 12). "
+        "A second Anna was not found by the helper agent.\n"
+        "- Parents proven: marriage 1644.\n- Siblings from a helper agent, not linked."
+    )
+    assert review.proven_next_to_helper(report) == []
+
+
+def test_quoted_proven_about_the_review_itself_is_quiet():
+    report = "Review reports 'proven' next to a helper agent twice: false alarm, I read the scans myself."
+    assert review.proven_next_to_helper(report) == []
