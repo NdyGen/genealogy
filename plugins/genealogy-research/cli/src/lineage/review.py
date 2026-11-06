@@ -386,6 +386,52 @@ def helper_quotes(report: str, story: str) -> list[str]:
     return found
 
 
+_PROVEN_ON_DERIVED = re.compile(
+    r"\b(?:bewezen|proven)\s+(?:op|uit|volgens|on|from|by)\s+(?:het|de|een|the|an?)\s+"
+    r"(?:regest(?:en)?|index|catalogus(?:titel)?|catalogue(?: title)?|inventaris(?:beschrijving)?|abstract)\b",
+    re.IGNORECASE,
+)
+# An enumerated feature "(2) residence ..." whose head word belongs to the name: name, patronymic and place.
+_NAME_ITEM = re.compile(
+    r"\(\s*(?:\d|i{1,3}|[a-c])\s*\)\s*(?:de |het |zijn |haar |the |his |her )?"
+    r"(?:naam|namen|patroniem|achternaam|familienaam|woonplaats|plaats|name|patronymic|surname|residence|place)\b"
+    r"(?! van (?:zijn|haar|de|het) | of (?:his|her|the) | onder | among )",
+    re.IGNORECASE,
+)
+
+
+_ONE_FEATURE = re.compile(r"(?:één|een|one|single) kenmerk|one feature|samen één|together one", re.IGNORECASE)
+
+
+def proven_on_derived(texts: dict[str, str]) -> list[str]:
+    """'Proven on the regest/index': a derived source is never the record of 'proven'."""
+    found = []
+    for where, text in texts.items():
+        for sentence in _SENTENCE.split(text):
+            if _PROVEN_ON_DERIVED.search(sentence) and not _NOT_PROVEN.search(sentence):
+                found.append(t(
+                    "{where}: 'proven' on a derived source (regest, index, catalogue): {sentence}",
+                    where=where,
+                    sentence=" ".join(sentence.split())[:140],
+                ))
+    return found
+
+
+def name_counted_twice(texts: dict[str, str]) -> list[str]:
+    """Name, patronymic and place are one feature; reviews kept finding them counted as (1) and (2)."""
+    found = []
+    for where, text in texts.items():
+        for sentence in (s for line in text.splitlines() for s in _SENTENCE.split(line)):
+            if len(_NAME_ITEM.findall(sentence)) >= 2 and not _ONE_FEATURE.search(sentence):
+                found.append(t(
+                    "{where}: place, patronymic or surname counted as a separate feature "
+                    "(name, patronymic and place are one): {sentence}",
+                    where=where,
+                    sentence=" ".join(sentence.split())[:140],
+                ))
+    return found
+
+
 def off_scale(texts: dict[str, str]) -> list[str]:
     """Certainty words that are not on the scale; reviews kept finding 'aantoonbaar' in five rounds out of six."""
     found = []
@@ -527,6 +573,8 @@ def check(
     new_notes = "\n".join(r.split(" ", 2)[2] for r in new_lines(ged_old, ged_new)
                           if r.split(" ", 2)[1:2] in (["NOTE"], ["CONC"], ["CONT"]) and r.count(" ") >= 2)
     u.warnings.extend(off_scale({t("report"): report_new, "GEDCOM": new_notes}))
+    u.warnings.extend(proven_on_derived({t("report"): report_new, "GEDCOM": new_notes, t("life story"): story}))
+    u.warnings.extend(name_counted_twice({t("report"): report_new, "GEDCOM": new_notes}))
     u.warnings.extend(_story_warnings(report_full, story))
     return u
 

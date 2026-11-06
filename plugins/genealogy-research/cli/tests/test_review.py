@@ -255,3 +255,19 @@ def test_helper_in_another_sentence_or_list_item_is_quiet():
 def test_quoted_proven_about_the_review_itself_is_quiet():
     report = "Review reports 'proven' next to a helper agent twice: false alarm, I read the scans myself."
     assert review.proven_next_to_helper(report) == []
+
+
+def test_proven_on_a_regest_or_index_is_reported():
+    texts = {"report": "Death before 1626 proven on the regest of fol. 33. Baptism bewezen op de index."}
+    assert len(review.proven_on_derived(texts)) == 2
+    quiet = {"report": "Proven on the scan (read myself); the regest gives the same date. Niet bewezen op het regest."}
+    assert review.proven_on_derived(quiet) == []
+
+
+def test_place_or_patronymic_as_second_feature_is_reported():
+    report = ("Burial 1749: (1) name with patronymic; (2) residence Klein-Dongen, where his house stood.\n"
+              "Begraving 1776: (1) patroniem Peter in beide registers, (2) woonplaats Leijsen.")
+    assert len(review.name_counted_twice({"report": report})) == 2
+    quiet = ("Burial 1749: (1) name, patronymic and residence are one feature; (2) the period: alive in 1749.\n"
+             "Overlijden 1767: (1) weduwe van Claas; (2) woonplaats 't End.")
+    assert review.name_counted_twice({"report": quiet}) == []
