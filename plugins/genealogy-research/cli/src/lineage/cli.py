@@ -580,13 +580,13 @@ def _stats_calibrate(args: argparse.Namespace) -> int:
                 "{account}: week {start} to weekly limit {hit}: EUR {eur} at API prices, EUR {month} per month",
                 account=name, start=f"{week.start:%Y-%m-%d %H:%M}", hit=f"{week.hit:%Y-%m-%d %H:%M}",
                 eur=f"{week.api_eur:.2f}", month=f"{week.monthly:.0f}",
-            ))  # fmt: skip
+            ) + ("" if week.complete else t(" (incomplete: the week began before the oldest transcript; not counted)")))  # fmt: skip
         budget = costs.monthly_budget(weeks)
         if budget is None:
-            print(t("{account}: no weekly-limit hit in the transcripts; nothing to calibrate", account=name))
+            print(t("{account}: no complete week ending in a weekly-limit hit; nothing to calibrate", account=name))
             continue
         print(t("{account}: monthly budget EUR {budget} (median of {count} weeks)",
-                account=name, budget=f"{budget:.0f}", count=len(weeks)))  # fmt: skip
+                account=name, budget=f"{budget:.0f}", count=sum(w.complete for w in weeks)))  # fmt: skip
         if args.write:
             project.require(str(project.file or ""), "lineage.toml")
             values = {"monthly_budget_eur": f"{budget:.0f}", "calibrated": f'"{dt.date.today().isoformat()}"'}

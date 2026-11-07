@@ -3,7 +3,6 @@
   "{account}: monthly budget EUR {budget} (median of {count} weeks)": "{account}: maandbudget EUR {budget} (mediaan van {count} weken)",
   "unknown account: {name}": "onbekend account: {name}",
   "{account}: week {start} to weekly limit {hit}: EUR {eur} at API prices, EUR {month} per month": "{account}: week {start} tot weeklimiet {hit}: EUR {eur} tegen API-prijzen, EUR {month} per maand",
-  "{account}: no weekly-limit hit in the transcripts; nothing to calibrate": "{account}: geen weeklimiet geraakt in de transcripts; niets te kalibreren",
   "written to {file}": "geschreven naar {file}",
   "{id}: not in the stats file and no branch dr/{id}": "{id}: niet in het statistiekbestand en geen branch dr/{id}",
   "no measured rounds in the stats file; run 'lineage stats backfill' first": "geen gemeten rondes in het statistiekbestand; draai eerst 'lineage stats backfill'",
@@ -34,5 +33,7 @@
   "not merged": "niet samengevoegd",
   "leader": "leider",
   "helpers": "hulpagenten",
-  "review": "review"
+  "review": "review",
+  "{account}: no complete week ending in a weekly-limit hit; nothing to calibrate": "{account}: geen volledige week die eindigt op de weeklimiet; niets te kalibreren",
+  " (incomplete: the week began before the oldest transcript; not counted)": " (onvolledig: de week begon vóór het oudste transcript; telt niet mee)"
 }

@@ -121,49 +121,45 @@ class Week:
     start: dt.datetime
     hit: dt.datetime
     api_eur: float
+    complete: bool = True
 
     @property
     def monthly(self) -> float:
-        days = (self.hit - self.start).total_seconds() / 86400
-        return self.api_eur / max(days, 1.0) * DAYS_PER_MONTH
-
-
-def _weekly_hits(config_dir: Path) -> list[tuple[dt.datetime, dt.datetime]]:
-    """(hit, reset) of every weekly-limit message the account received, in local time."""
-    found: dict[int, tuple[dt.datetime, dt.datetime]] = {}
-    for session in transcripts.sessions(config_dir / "projects", config_dir):
-        for message in session.messages.values():
-            if message.model != transcripts.SYNTHETIC or not transcripts.WEEKLY.search(
-                message.text
-            ):
-                continue
-            hit = message.time.astimezone().replace(tzinfo=None)
-            reset = limit_reset(message.text, hit)
-            # Every session that runs into the limit gets the message; the first one is the hit.
-            if reset is not None and (reset not in found or hit < found[reset][0]):
-                found[reset] = (hit, dt.datetime.fromtimestamp(reset))
-    return sorted(found.values())
+        """A weekly limit is an allowance per week: used up early, the rest of the week stands still."""
+        return self.api_eur * DAYS_PER_MONTH / 7
 
 
 def calibrate(config_dir: Path, prices: PriceTable) -> list[Week]:
-    """Every week that ended in a weekly-limit hit, with what the account used in it at API prices."""
-    hits = _weekly_hits(config_dir)
-    if not hits:
-        return []
-    weeks = [(reset - dt.timedelta(days=7), hit) for hit, reset in hits]
-    totals = [0.0] * len(weeks)
-    earliest = min(start for start, _ in weeks).astimezone()
-    for session in transcripts.sessions(config_dir / "projects", config_dir, since=earliest):
+    """Every week that ended in a weekly-limit hit, with what the account used in it at API prices.
+
+    A week that began before the oldest transcript still on disk (Claude Code deletes old ones) is
+    incomplete and does not count towards the budget."""
+    spent: list[tuple[dt.datetime, float]] = []
+    hits: dict[int, dt.datetime] = {}
+    for session in transcripts.sessions(config_dir / "projects", config_dir):
         for message in session.messages.values():
             local = message.time.astimezone().replace(tzinfo=None)
-            for i, (start, hit) in enumerate(weeks):
-                if start <= local <= hit:
-                    totals[i] += prices.eur(message.model, message.usage)
-    return [Week(start, hit, total) for (start, hit), total in zip(weeks, totals, strict=True)]
+            if message.model == transcripts.SYNTHETIC and transcripts.WEEKLY.search(message.text):
+                reset = limit_reset(message.text, local)
+                # Every session that runs into the limit gets the message; the first one is the hit.
+                if reset is not None and (reset not in hits or local < hits[reset]):
+                    hits[reset] = local
+            else:
+                spent.append((local, prices.eur(message.model, message.usage)))
+    if not spent:
+        return []
+    oldest = min(when for when, _ in spent)
+    weeks = []
+    for reset, hit in sorted(hits.items()):
+        start = dt.datetime.fromtimestamp(reset) - dt.timedelta(days=7)
+        total = sum(eur for when, eur in spent if start <= when <= hit)
+        weeks.append(Week(start, hit, total, complete=start >= oldest))
+    return weeks
 
 
 def monthly_budget(weeks: list[Week]) -> float | None:
-    return statistics.median(w.monthly for w in weeks) if weeks else None
+    complete = [w.monthly for w in weeks if w.complete]
+    return statistics.median(complete) if complete else None
 
 
 def write_account_values(file: Path, account: str, values: dict[str, str]) -> None:

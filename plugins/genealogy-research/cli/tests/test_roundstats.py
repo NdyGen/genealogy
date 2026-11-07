@@ -156,7 +156,17 @@ def test_calibration_takes_the_week_before_a_weekly_limit(tmp_path):
     one = prices.eur("claude-opus-5-5", Usage.from_api(assistant(0, "x")["message"]["usage"]))
     assert week.api_eur == pytest.approx(one)
     assert week.start == reset.replace(tzinfo=None) - dt.timedelta(days=7)
-    assert costs.monthly_budget([week]) == pytest.approx(week.monthly)
+    assert week.complete
+    assert costs.monthly_budget([week]) == pytest.approx(one * costs.DAYS_PER_MONTH / 7)
+
+    # Without the older transcript the week may have begun before what is still on disk.
+    (tmp_path / "projects/-p/s.jsonl").write_text(
+        "".join(json.dumps(e) + "\n" for e in (entry(reset - dt.timedelta(days=3), "inside"),
+                                               entry(hit, "limit", transcripts.SYNTHETIC, limit))),
+        encoding="utf-8",
+    )  # fmt: skip
+    [week] = costs.calibrate(tmp_path, prices)
+    assert not week.complete and costs.monthly_budget([week]) is None
 
 
 # --- yield ----------------------------------------------------------------------------------------------------
