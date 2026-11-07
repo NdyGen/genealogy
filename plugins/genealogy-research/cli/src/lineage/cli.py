@@ -42,6 +42,7 @@ from lineage import (
     scan,
     settings,
     stale,
+    verify,
     web,
 )
 from lineage.checks import Finding, Level, check
@@ -533,6 +534,29 @@ def cmd_review(args: argparse.Namespace) -> int:
         return 2
     print(outcome.text())
     return 1 if outcome.errors else 0
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    project = _project()
+    if args.all:
+        text = project.path("gedcom").read_bytes().decode("utf-8", "surrogateescape")
+        result = verify.verify("", text, offline=args.cached_only, everything=True)
+    elif args.id:
+        root = roundstats.main_root(project.root)
+        tip = args.tip or f"dr/{args.id.strip('@').upper()}"
+        base = args.base or roundstats._git(root, "merge-base", roundstats.main_branch(root), tip).strip()
+        if not base:
+            print(t("branch {branch} not found", branch=tip), file=sys.stderr)
+            return 2
+        old, new = roundstats.gedcom_text(root, base), roundstats.gedcom_text(root, tip)
+        result = verify.verify(old, new, offline=args.cached_only)
+    else:
+        print(t("give a round ID or --all"), file=sys.stderr)
+        return 2
+    if args.tsv:
+        args.tsv.write_text(verify.tsv(result), encoding="utf-8")
+    print(result.text())
+    return 1 if result.errors and (args.strict or project.verify_strict) else 0
 
 
 def cmd_stats(args: argparse.Namespace) -> int:
@@ -1267,6 +1291,21 @@ def build_parser() -> argparse.ArgumentParser:
     review_parser.add_argument("id")
     review_parser.set_defaults(offline=cmd_review)
 
+    verify_parser = commands.add_parser(
+        "verify",
+        help="re-fetch the records cited for the facts a round added or changed, and compare them",
+    )
+    verify_parser.add_argument("id", nargs="?", help="round ID: compares dr/<ID> with its merge base")
+    verify_parser.add_argument("--all", action="store_true", help="every cited fact in the tree")
+    verify_parser.add_argument("--base", help="old commit instead of the merge base")
+    verify_parser.add_argument("--tip", help="new commit instead of dr/<ID>")
+    verify_parser.add_argument(
+        "--offline", dest="cached_only", action="store_true", help="only records already in the cache"
+    )
+    verify_parser.add_argument("--strict", action="store_true", help="exit 1 on errors ([verify] strict does the same)")
+    verify_parser.add_argument("--tsv", type=Path, help="write every citation and its outcome to this file")
+    verify_parser.set_defaults(offline=cmd_verify)
+
     stats_parser = commands.add_parser(
         "stats", help="cost and yield per research round (the stats file); without a command: the summary"
     )
@@ -1706,6 +1745,7 @@ def _run(args: argparse.Namespace) -> int:
             return args.offline(args)
         except (
             archive.ArchiveError,
+            web.WebError,
             rat.RatError,
             mail.MailError,
             requests.RequestError,

@@ -35,6 +35,9 @@ config_dir = "~/.claude-personal"
 subscription_eur = 90               # monthly price, for the subscription share in `lineage stats`
 monthly_budget_eur = 1400           # API-equivalent use per month; `lineage stats calibrate --write`
 
+[verify]
+strict = false                      # true: `round finish` refuses on a `lineage verify` ERROR
+
 [prices]                            # optional: API list prices override, USD per million tokens
 usd_eur = 0.86
 "claude-opus-5-5" = [4, 20, 0.2]    # input, output, cache read (cache writes: 1.25x / 2x input)
@@ -64,6 +67,7 @@ Credentials never go in this file. `lineage auth <service>` (mail, gramps, trans
 - `question-map`: heatmap page of open questions.
 - `queue show|add|next|start|done|skip|normalize`: deep-research queue.
 - `review <id>`: mechanical review of a finished research branch.
+- `verify <id>|--all [--offline] [--tsv file]`: re-fetch the records cited for new or changed facts (all facts with `--all`) and compare event, date, place and names.
 - `stats [show <id>|record|backfill|calibrate]`: cost and yield per research round (`lineage round stats <id>`).
 - `guard`: keeps research rounds running across usage limits.
 - `archive search|show`: search and view records on Open Archives.

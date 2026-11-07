@@ -10,7 +10,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from lineage import metrics
+from lineage import metrics, web
 from lineage.i18n import t
 
 API = "https://api.openarch.nl/1.1/records"
@@ -26,15 +26,27 @@ class ArchiveError(RuntimeError):
     pass
 
 
-def _get(endpoint: str, params: dict[str, str | int]) -> dict:
+class NotCached(ArchiveError):
+    pass
+
+
+class RecordNotFound(ArchiveError):
+    pass
+
+
+def _get(endpoint: str, params: dict[str, str | int], offline: bool = False) -> dict:
     query = urllib.parse.urlencode({k: v for k, v in params.items() if v not in (None, "")})
     url = f"{API}/{endpoint}.json?{query}"
     cache = CACHE_DIR / (hashlib.sha1(url.encode()).hexdigest() + ".json")
     if cache.exists():
         return json.loads(cache.read_text(encoding="utf-8"))
+    if offline:
+        raise NotCached(url)
 
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     for attempt in range(3):
+        # `lineage verify --all` fetches thousands of records in a row.
+        web.take_turn(urllib.parse.urlsplit(url).netloc, web.PAUSE_PER_HOST)
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
                 body = response.read()
@@ -65,6 +77,19 @@ class Hit:
     @property
     def ref(self) -> str:
         return f"{self.archive}:{self.identifier}"
+
+
+def _date_parts(date: dict | None) -> tuple[int | None, int | None, int | None]:
+    """(day, month, year), each None when the record leaves it out."""
+    if not date:
+        return None, None, None
+
+    def number(key: str) -> int | None:
+        value = date.get(key) or date.get(key.capitalize())
+        return int(value) if str(value or "").isdigit() else None
+
+    day, month, year = (number(k) for k in ("day", "month", "year"))
+    return day, month, year
 
 
 def _date_text(date: dict | None) -> str:
@@ -148,6 +173,8 @@ class RecordPerson:
     birth: str = ""
     residence: str = ""
     profession: str = ""
+    birth_date: tuple[int | None, int | None, int | None] = (None, None, None)
+    birth_place: str = ""
 
 
 @dataclass
@@ -166,6 +193,7 @@ class Record:
     scan_url: str = ""
     persons: list[RecordPerson] = field(default_factory=list)
     remarks: list[str] = field(default_factory=list)
+    date_parts: tuple[int | None, int | None, int | None] = (None, None, None)
 
     @property
     def url(self) -> str:
@@ -235,13 +263,14 @@ def _remarks(source: dict, events: list[dict]) -> list[str]:
     return result
 
 
-def show(ref: str) -> Record:
+def show(ref: str, offline: bool = False) -> Record:
+    """offline: only from the cache; NotCached when the record was never fetched."""
     archive, _, identifier = ref.partition(":")
     if not identifier:
         raise ArchiveError(t("expected <archive>:<identifier>, got {ref!r}", ref=ref))
-    data = _get("show", {"archive": archive, "identifier": identifier, "lang": "nl"})
+    data = _get("show", {"archive": archive, "identifier": identifier, "lang": "nl"}, offline=offline)
     if "Person" not in data:
-        raise ArchiveError(t("record {ref} not found", ref=ref))
+        raise RecordNotFound(t("record {ref} not found", ref=ref))
 
     source = data.get("Source", {})
     reference = source.get("SourceReference", {})
@@ -257,6 +286,7 @@ def show(ref: str) -> Record:
         source_type=source.get("SourceType", ""),
         event=event.get("EventType", ""),
         date=_date_text(event.get("EventDate") or source.get("SourceDate")),
+        date_parts=_date_parts(event.get("EventDate") or source.get("SourceDate")),
         place=_place(event.get("EventPlace")) or _place(source.get("SourcePlace")),
         institution=reference.get("InstitutionName", ""),
         archive_number=str(reference.get("Archive", "")),
@@ -278,6 +308,8 @@ def show(ref: str) -> Record:
                 birth=birth,
                 residence=_place(person.get("Residence")),
                 profession=str(person.get("Profession") or ""),
+                birth_date=_date_parts(person.get("BirthDate")),
+                birth_place=_place(person.get("BirthPlace")),
             )
         )
     return record

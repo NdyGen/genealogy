@@ -31,6 +31,10 @@ if [ "$UPDATE_ROUND" = 0 ]; then
   REVIEW=$(cd "$WT" && lineage review "$ID") || {
     echo "$REVIEW" >&2; echo "fix the ERROR lines, commit, and run 'lineage round finish' again" >&2; exit 1; }
   echo "$REVIEW"
+  # Re-fetches the records the new facts cite. Only blocks with [verify] strict = true in lineage.toml.
+  VERIFY=$(cd "$WT" && lineage verify "$ID") || {
+    echo "$VERIFY" >&2; echo "fix the verify ERROR lines, commit, and run 'lineage round finish' again" >&2; exit 1; }
+  echo "$VERIFY"
 fi
 
 mkdir -p "$(out_dir "$WT")"

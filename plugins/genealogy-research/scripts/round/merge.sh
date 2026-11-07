@@ -38,7 +38,7 @@ if marker_file "$WT" update bijwerk >/dev/null; then
   done
 fi
 BEFORE=$(git rev-parse HEAD)
-[ "$UPDATE_ROUND" = 1 ] || { echo "review $ID:"; lineage review "$ID" || true; }
+[ "$UPDATE_ROUND" = 1 ] || { echo "review $ID:"; lineage review "$ID" || true; lineage verify "$ID" || true; }
 
 git merge --no-edit -q "$BRANCH" || true
 # The output folder is gitignored, but leaders sometimes force-add it; identical file names across rounds then

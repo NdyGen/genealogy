@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from lineage import costs, metrics, roundstats, settings, transcripts
+from lineage import costs, metrics, roundstats, settings, transcripts, verify
 from lineage.gedcom import parse
 from lineage.transcripts import Usage
 from tests.conftest import ged, project
@@ -358,3 +358,11 @@ def test_metrics_only_inside_a_round_worktree(tmp_path, monkeypatch):
     assert metrics.read(worktree, Path("output")) == [
         {"t": metrics.read(worktree, Path("output"))[0]["t"], "kind": "web", "host": "example.org", "bytes": 10}
     ]
+
+
+def test_describe_shows_verification():
+    r = {c: "" for c in roundstats.COLUMNS}
+    r.update(id="I9", kind="normal", verify_errors="1", verify_supported="4", verify_contradicted="1")
+    assert set(roundstats.VERIFY_COLUMNS) == {f"verify_{o}" for o in verify.OUTCOMES} | {"verify_errors"}
+    text = roundstats.describe(r)
+    assert "4 supported" in text and "1 contradicted" in text and "1 errors" in text
