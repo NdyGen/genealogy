@@ -39,8 +39,10 @@ _STARTED = re.compile(r"deep research (\S+) (?:started|gestart)(.*)$")
 _FOLLOW_UP = re.compile(r"follow-up|vervolgronde")
 _MERGE = re.compile(r"^Merge branch 'dr/([^']+)'")
 _MERGED = re.compile(r"^Deep research (\S+) (?:merged|samengevoegd):")
-_REVIEW_CALL = re.compile(r"lineage review\s+@?(\w+)")
-_MERGE_CALL = re.compile(r"(?:round merge|merge\.sh)\s+@?(\w+)")
+# Rounds before the plugin ran `ndygen review` and `samenvoegen.sh`.
+_REVIEW_CALL = re.compile(r"\b(?:lineage|ndygen) review\s+@?(\w+)")
+_MERGE_CALL = re.compile(r"(?:round merge|merge\.sh|samenvoegen(?:\.sh)?)\s+@?(\w+)")
+_HELPER_PROMPT = re.compile(r"^(?:Read the brief|Lees de opdracht)")
 # Countries whose places are written "place, province, country"; elsewhere the country is the region.
 _BY_PROVINCE = {"nederland", "netherlands", "belgië", "belgie", "belgium"}
 
@@ -160,7 +162,7 @@ class Spend:
 
 
 def _role(session: Session) -> str:
-    if session.subagent or session.first_prompt.startswith("Read the brief"):
+    if session.subagent or _HELPER_PROMPT.match(session.first_prompt):
         return "helpers"
     return "leader"
 

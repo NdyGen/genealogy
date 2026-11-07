@@ -292,6 +292,15 @@ def test_row_attributes_sessions_review_and_counters(repo, tmp_path):
     assert "1 measured rounds" in roundstats.summary(roundstats.read_rows(path))
 
 
+def test_older_command_and_prompt_names_are_recognised(tmp_path):
+    path = write_session(tmp_path / "s.jsonl", user(0, "Lees de opdracht in x.opdracht.md"),
+                         assistant(1, "a", blocks=[bash("uv run ndygen review I5")]),
+                         assistant(2, "b", blocks=[bash(".claude/skills/deep-research/scripts/samenvoegen.sh I5", "t2")]))
+    session = transcripts.read(path, tmp_path)
+    assert roundstats._role(session) == "helpers"
+    assert [w[0] for w in roundstats.Coordinator._windows(session)] == ["I5"]
+
+
 def test_metrics_only_inside_a_round_worktree(tmp_path, monkeypatch):
     worktree = tmp_path / ".worktrees" / "dr-I1"
     (worktree / "sub").mkdir(parents=True)
