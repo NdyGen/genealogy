@@ -261,7 +261,9 @@ def test_row_attributes_sessions_review_and_counters(repo, tmp_path):
                   assistant(2, "h1", "claude-sonnet-5-5"), assistant(3, "h2", "claude-sonnet-5-5"))
     write_session(worktree / "c.jsonl", user(200, "later round"), assistant(200, "late"))
     main = transcripts.project_dir(cfg, repo)
-    write_session(main / "co.jsonl", assistant(20, "c0"), assistant(25, "c1", blocks=[bash("lineage review I1")]),
+    write_session(main / "co.jsonl", assistant(3, "c00", blocks=[bash("cat .worktrees/dr-I1/output/DONE")]),
+                  assistant(20, "c0", blocks=[bash("ls .worktrees/dr-I12")]),
+                  assistant(25, "c1", blocks=[bash("git -C .worktrees/dr-I1 log")]),
                   assistant(27, "c2"), assistant(29, "c3", blocks=[bash("lineage round merge I1", "t9")]))
     write_session(main / "co/subagents/agent-1.jsonl", assistant(26, "s1", "claude-sonnet-5-5"))
     out = repo / ".worktrees/dr-I1/output"
@@ -271,10 +273,10 @@ def test_row_attributes_sessions_review_and_counters(repo, tmp_path):
 
     [round_] = roundstats.merged_rounds(repo)
     accounts = costs.account_dirs()
-    row = roundstats.row(repo, round_, accounts, roundstats.Coordinator(repo, accounts, round_.start))
+    row = roundstats.row(repo, round_, accounts, roundstats.Coordinator(repo, accounts, round_.start, [round_]))
     assert (row["leader_sessions"], row["helper_sessions"], row["tool_calls"]) == ("1", "1", "1")
     assert row["leader_out"] == "200" and row["helpers_out"] == "200"
-    assert row["review_out"] == "400"  # c1, c2, c3 and the review sub-agent; c0 is before the review
+    assert row["review_out"] == "400"  # c1, c2, c3 and the sub-agent; c00 is before the finish, c0 names another round
     assert row["active_min"] == "3"
     assert row["models"] == "claude-opus-5-5=6550;claude-sonnet-5-5=3930"
     assert (row["oa_requests"], row["rat_requests"], row["download_mb"]) == ("1", "1", "1.0")
@@ -298,7 +300,8 @@ def test_older_command_and_prompt_names_are_recognised(tmp_path):
                          assistant(2, "b", blocks=[bash(".claude/skills/deep-research/scripts/samenvoegen.sh I5", "t2")]))
     session = transcripts.read(path, tmp_path)
     assert roundstats._role(session) == "helpers"
-    assert [w[0] for w in roundstats.Coordinator._windows(session)] == ["I5"]
+    assert roundstats._MERGE_CALL.findall(".claude/skills/deep-research/scripts/samenvoegen.sh I5") == ["I5"]
+    assert roundstats._MERGE_CALL.findall("lineage round merge I5 --keep") == ["I5"]
 
 
 def test_metrics_only_inside_a_round_worktree(tmp_path, monkeypatch):
