@@ -28,7 +28,7 @@ class WebError(RuntimeError):
         self.status = status
 
 
-def _take_turn(host: str, pause: float) -> None:
+def take_turn(host: str, pause: float) -> None:
     with _slot:
         turn = max(time.monotonic(), _last.get(host, 0) + pause)
         _last[host] = turn
@@ -55,7 +55,7 @@ def fetch(
     }
     request = urllib.request.Request(url, headers=headers)
     for attempt in range(ATTEMPTS):
-        _take_turn(host, pause)
+        take_turn(host, pause)
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
                 data = response.read()

@@ -124,6 +124,32 @@ Where the numbers come from:
   folder (after the merge in the sources folder); Transkribus credits from the HTR log by the `dr-<ID>/`
   in the image path. Only rounds since the counters exist have archive numbers.
 - Opencode rounds get a row with yield and empty token columns.
+- **Verification**: the `verify_*` columns count the outcomes of `lineage verify` per citation at the
+  merge (see below). A backfill keeps the counts the merge recorded and leaves them empty for older rounds.
+
+## Verification (`lineage verify`)
+
+`lineage verify <ID>` takes the facts (events, NAME, FAMC) that `dr/<ID>` added or changed against its
+merge base, resolves each citation's `PAGE` and compares the record with the fact. `round finish` and
+`round merge` run it; `--all` checks every cited fact in the tree, `--tsv` writes one line per citation.
+
+- **References**: an Open Archieven record URL (fetched with `archive.show`, cached in
+  `~/.cache/lineage/openarch`), a Delpher article URN (its OCR text, cached in `~/.cache/lineage/delpher`),
+  a scan (`RAT <fonds> ... inv. <n> ... scan <n>`, `scan: <file>`, `transkribus: <file>`), any other URL,
+  else unresolvable.
+- **Open Archieven**: the person is found among the record's persons by name (given names folded to their
+  Latin form, surname prefixes ignored, or as the partner of a named spouse). Same event (birth record for
+  BIRT): the date must match, a mismatch over ten days is a contradiction, under ten days (burial registers
+  index the day of notice) partly; the place differing is partly. Neighbouring event (baptism for BIRT,
+  burial for DEAT): the date must fall in a window. Otherwise birth date or age, occupation and residence
+  of the record person. FAMC: the child and each parent in a parent role.
+- **Delpher**: surname, given name and year in the OCR text; never a contradiction.
+- **Scans**: no comparison, but the citation or the fact's NOTE needs the marker `reread by lead`
+  (`nagelezen door leider`).
+- **Severity**: a fact is proven when a citation has QUAY 3. ERROR: a QUAY 3 citation contradicted, or no
+  QUAY 3 citation that resolves. WARNING: partly supported, a contradiction on a lower QUAY, a scan
+  without the marker. Exit status 1 on an ERROR only with `--strict` or `[verify] strict = true`; until
+  the false-alarm rate is known, verify only measures.
 
 ## Runner interface (scripts/round/runner.sh)
 

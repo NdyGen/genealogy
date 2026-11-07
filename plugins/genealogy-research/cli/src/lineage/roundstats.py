@@ -18,7 +18,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from lineage import costs, gedcom, htr, metrics, settings, transcripts
+from lineage import costs, gedcom, htr, metrics, settings, transcripts, verify
 from lineage.gedcom import Tree
 from lineage.i18n import t
 from lineage.transcripts import Session, Usage
@@ -33,7 +33,9 @@ COLUMNS = [
     "citations_added", "queue_added",
     "oa_requests", "rat_requests", "web_requests", "browser_pages", "download_mb", "scans", "scan_mb",
     "htr_credits", "century", "region",
+    *(f"verify_{o}" for o in verify.OUTCOMES), "verify_errors",
 ]  # fmt: skip
+VERIFY_COLUMNS = [c for c in COLUMNS if c.startswith("verify_")]
 SCAN_TYPES = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".pdf"}
 _STARTED = re.compile(r"deep research (\S+) (?:started|gestart)(.*)$")
 _FOLLOW_UP = re.compile(r"follow-up|vervolgronde")
@@ -352,6 +354,14 @@ def _queue_ids(text: str | None) -> set[str]:
     return {line.split("\t", 1)[0] for line in text.splitlines()[1:] if line.strip()}
 
 
+def gedcom_text(root: Path, commit: str) -> str:
+    return _show(root, commit, settings.current().rel("gedcom")) or ""
+
+
+def verification(root: Path, base: str, tip: str) -> verify.Result:
+    return verify.verify(gedcom_text(root, base), gedcom_text(root, tip))
+
+
 def round_yield(root: Path, round_: Round) -> tuple[Yield, Tree]:
     """The yield, and the tree at the round's tip."""
     config = settings.current()
@@ -432,7 +442,7 @@ def _mb(size: int) -> str:
     return f"{size / 1_000_000:.1f}"
 
 
-def row(root: Path, round_: Round, spend: Spend) -> dict[str, str]:
+def row(root: Path, round_: Round, spend: Spend, verified: verify.Result | None = None) -> dict[str, str]:
     prices = costs.table()
     out: dict[str, str] = {c: "" for c in COLUMNS}
     # Review turns alone (an opencode round, transcripts already deleted) do not make a measured round.
@@ -493,6 +503,9 @@ def row(root: Path, round_: Round, spend: Spend) -> dict[str, str]:
         out.update(scans=str(scans[0]), scan_mb=_mb(scans[1]))
     out["htr_credits"] = str(_htr_credits(round_))
     out.update(century=century(tree, round_.id), region=region(tree, round_.id))
+    if verified is not None:
+        out.update({f"verify_{k}": str(v) for k, v in verified.counts().items()})
+        out["verify_errors"] = str(len(verified.errors))
     return out
 
 
@@ -529,7 +542,7 @@ def record(root: Path, pid: str, base: str, tip: str) -> dict[str, str]:
     accounts = costs.account_dirs()
     recent = merged_rounds(root, main_branch(root), since=round_.start - dt.timedelta(days=1))
     spend = measure(root, [*recent, round_], accounts)[round_.tip]
-    found = row(root, round_, spend)
+    found = row(root, round_, spend, verification(root, base, tip))
     upsert(stats_path(root), [found])
     return found
 
@@ -544,7 +557,9 @@ def live(root: Path, pid: str) -> dict[str, str]:
 
 def backfill(root: Path, force: bool = False, notify=print) -> int:
     path = stats_path(root)
-    known = {(r["id"], r["merged"]) for r in read_rows(path)}
+    # Verification fetches records; a backfill keeps what the merge recorded instead of fetching them all.
+    previous = {(r["id"], r["merged"]): r for r in read_rows(path)}
+    known = set(previous)
     todo = [
         r
         for r in merged_rounds(root, main_branch(root))
@@ -555,7 +570,9 @@ def backfill(root: Path, force: bool = False, notify=print) -> int:
     spends = measure(root, todo, costs.account_dirs(), notify)
     rows = []
     for i, round_ in enumerate(todo, 1):
-        rows.append(row(root, round_, spends[round_.tip]))
+        found = row(root, round_, spends[round_.tip])
+        found.update({c: v for c in VERIFY_COLUMNS if (v := previous.get((found["id"], found["merged"]), {}).get(c))})
+        rows.append(found)
         if i % 25 == 0:
             notify(t("{done} of {total} rounds", done=i, total=len(todo)))
             upsert(path, rows)
@@ -709,4 +726,11 @@ def describe(r: dict[str, str]) -> str:
           queue=r["queue_added"]),
         t("person: century {century}, region {region}", century=r["century"] or "?", region=r["region"] or "?"),
     ]  # fmt: skip
+    if r["verify_errors"]:
+        lines.append(t(
+            "verification: {supported} supported, {partial} partly, {contradicted} contradicted, "
+            "{unresolvable} unresolvable, {unchecked} not comparable, {unreread} scans without reread marker; "
+            "{errors} errors",
+            errors=r["verify_errors"], **{o: r[f"verify_{o}"] or "0" for o in verify.OUTCOMES},
+        ))  # fmt: skip
     return "\n".join(lines)

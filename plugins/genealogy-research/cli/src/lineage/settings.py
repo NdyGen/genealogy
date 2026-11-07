@@ -86,6 +86,7 @@ class Config:
     disk: dict[str, float] = field(default_factory=dict)
     accounts: dict[str, dict[str, str]] = field(default_factory=dict)
     prices: dict[str, float | tuple[float, ...]] = field(default_factory=dict)
+    verify_strict: bool = False
 
     def rel(self, key: str) -> Path:
         """The path below the project root, as written in lineage.toml or its default."""
@@ -206,6 +207,7 @@ def parse(text: str, file: Path) -> Config:
         disk={k: float(v) for k, v in disk.items()},
         accounts={k: {kk: str(vv) for kk, vv in (v or {}).items()} for k, v in accounts.items()},
         prices=_prices(_table(raw, "prices", file), file),
+        verify_strict=bool(_table(raw, "verify", file).get("strict", False)),
     )
 
 
@@ -276,6 +278,7 @@ def dump(c: Config) -> str:
         "gramps": {"url": c.gramps_url},
         "rat": {"fonds": c.rat_fonds},
         "disk": dict(c.disk),
+        "verify": {"strict": c.verify_strict},
     }
     for table, values in tables.items():
         if values := {k: v for k, v in values.items() if v}:

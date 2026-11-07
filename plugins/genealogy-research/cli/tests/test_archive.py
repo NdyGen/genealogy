@@ -12,7 +12,7 @@ REF = "bhi:7c3d9e20-1111-4222-8333-444455556666"
 
 @pytest.fixture
 def offline(monkeypatch):
-    def fake_get(endpoint, params):
+    def fake_get(endpoint, params, offline=False):
         name = "marriage" if endpoint == "show" else "search"
         return json.loads((FIXTURES / f"openarch-{name}.json").read_text())
 
