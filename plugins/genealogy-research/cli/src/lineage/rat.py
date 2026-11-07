@@ -18,6 +18,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from lineage import metrics
 from lineage.i18n import t
 
 API = "https://webservices8.memorix.nl/archives"
@@ -147,7 +148,9 @@ def _fetch(url: str, timeout: int) -> bytes:
         _wait_turn()
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
-                return response.read()
+                data = response.read()
+            metrics.record("rat", urllib.parse.urlsplit(url).netloc, len(data))
+            return data
         except urllib.error.HTTPError as exc:
             if exc.code == 429:
                 _lock_out(

@@ -107,6 +107,16 @@ else
   fi
 fi
 
+# Cost and yield of the round for `lineage stats`, while the worktree (its counters and scans) still exists.
+# A failure here is reported, never a reason to stop the merge.
+if lineage stats record "$ID" --base "$(git merge-base "$BEFORE" "$BRANCH")" --tip "$(git rev-parse "$BRANCH")" > "$TMP/stats" 2>&1; then
+  sed -n 1p "$TMP/stats"
+  git add "$STATS"
+  git diff --cached --quiet || git commit -qm "Stats: $ID" -- "$STATS"
+else
+  echo "warning: no stats recorded for $ID: $(tail -1 "$TMP/stats")" >&2
+fi
+
 # From here on only reports: a failing check must not leave the worktree and branch behind.
 echo "validate: $(lineage validate --level info | tail -1)"
 

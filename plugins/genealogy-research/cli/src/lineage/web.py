@@ -10,6 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from lineage import metrics
 from lineage.i18n import t
 
 BROWSER_UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0 Safari/537.36"
@@ -57,7 +58,9 @@ def fetch(
         _take_turn(host, pause)
         try:
             with urllib.request.urlopen(request, timeout=timeout) as response:
-                return response.read()
+                data = response.read()
+            metrics.record("web", host, len(data))
+            return data
         except urllib.error.HTTPError as exc:
             if exc.code in (429, 502, 503, 504) and attempt < ATTEMPTS - 1:
                 time.sleep(_wait_time(exc, attempt))

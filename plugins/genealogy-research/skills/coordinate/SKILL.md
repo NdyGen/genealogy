@@ -86,6 +86,8 @@ Text that sits in an agent's input field but was not sent (such as "merge ... to
 
 Before you merge:
 0. **Mechanical check:** `lineage review <ID>` (from main). The script reports what needs no judgment: records outside the reach of the round, an old value that vanished without a NOTE, a corrected date that still stands at another record, removed rows in the coordinates table, the number of Transkribus recognitions in the log against the report, the account in the report header, queue IDs the report does not mention, a new FAMC without QUAY 1 while a NOTE derives the identity (case A; not when the link's own NOTE opens with "proven" and cites the record naming the kinship under a QUAY 2 or 3 source, that call is the review agent's), a queue item skipped as possibly living that the tree now dates before the living cut-off, a queue reason with another certainty word than the report or the new questions for the same ID, a new `[mail: ...]` question while the report still calls a source unread, and a quote from a helper's reading that the life story repeats without reservation (also in update rounds). `round finish` already runs it at the lead. Give the output to the review agent so it spends its time on what a script cannot do: reading scans, weighing identifications and certainty words, testing the life story. Points 2, 3 and 6 below are largely done by the script. It also reports words outside the certainty scale in new report text, new NOTEs and the life story, and new GEDCOM lines longer than 255 characters; that applies to what the coordinator writes too.
+**Cost.** `lineage round stats <ID>` shows what the round cost so far (tokens and EUR for leader and helpers, active time, limit hits, archive requests, scans, Transkribus credits) and what it added to the tree. A round that cost far more than the median of `lineage stats` for its kind is worth a line in the lessons file: what made it expensive.
+
 1. **Read the report:** does the summary match the commits (`git -C .worktrees/dr-<ID> log --oneline main..HEAD`)?
 2. **Report against the diff:** put every claim under new, corrected, removed and queue next to `git -C .worktrees/dr-<ID> diff main -- <gedcom> <queue>`. If something is in the report but not in the diff (an "added" child, a queue item, a removal), have the lead carry it out or remove it from the report before merging.
 3. **Transkribus count:** count the recognitions (`find .worktrees/dr-<ID>/<output> -path '*/htr/*.txt' | wc -l`) and compare with the number in the report and with the maximum in the brief.
@@ -104,11 +106,14 @@ The script:
 1. merges the branch, keeping both sides of log, questions, queue and reports;
 2. normalizes the queue and removes duplicate source records;
 3. sets the person to done, adds to them in the tree the note `Deep research <date>: <report>` (an earlier round's is replaced), and validates and tests;
-4. keeps the scans in the project's scans folder (outside git);
-5. closes the round's tab (hc: its terminals) if still open, and removes worktree and branch;
-6. removes Claude Code's temp folders (`/tmp/claude-<uid>/...--worktrees-dr-<ID>`) of every worktree that no longer exists. They would otherwise stay and fill the /tmp quota, after which Bash output and `mktemp` fail.
+4. records the round's cost and yield in the stats file (`lineage config path stats`; commit `Stats: <ID>`), including your review turns from the first command naming the round after its last commit to `round merge <ID>`;
+5. keeps the scans in the project's scans folder (outside git);
+6. closes the round's tab (hc: its terminals) if still open, and removes worktree and branch;
+7. removes Claude Code's temp folders (`/tmp/claude-<uid>/...--worktrees-dr-<ID>`) of every worktree that no longer exists. They would otherwise stay and fill the /tmp quota, after which Bash output and `mktemp` fail.
 
 With `--keep` worktree, branch and tab stay.
+
+**Cost in every merge report.** `round merge` prints a line `cost <ID>: EUR ... at API prices (review EUR ...), subscription EUR ...; ... min active; ... facts, EUR ... per fact` (in the project's language). Put that line, as printed, in every message to the user about a merged round. Without it (the line `warning: no stats recorded`), say so and give `lineage round stats <ID>` instead.
 
 **After the merge** come the steps `project.md` names: for example update a site, a blog proposal at `Blog-worthy: yes` (Dutch: `Blogwaardig: ja`), a notice when a line became one generation longer. A blog post is never written by the lead itself; it comes only after the user's choice.
 

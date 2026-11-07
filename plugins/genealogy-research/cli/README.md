@@ -32,6 +32,12 @@ url = "https://gramps.example.org"
 
 [accounts.personal]                 # Claude accounts for parallel rounds
 config_dir = "~/.claude-personal"
+subscription_eur = 90               # monthly price, for the subscription share in `lineage stats`
+monthly_budget_eur = 1400           # API-equivalent use per month; `lineage stats calibrate --write`
+
+[prices]                            # optional: API list prices override, USD per million tokens
+usd_eur = 0.86
+"claude-opus-5-5" = [4, 20, 0.2]    # input, output, cache read (cache writes: 1.25x / 2x input)
 ```
 
 Without the file the default paths apply relative to the working directory, and commands that need a project value (target persons, line root) say which key is missing.
@@ -58,6 +64,7 @@ Credentials never go in this file. `lineage auth <service>` (mail, gramps, trans
 - `question-map`: heatmap page of open questions.
 - `queue show|add|next|start|done|skip|normalize`: deep-research queue.
 - `review <id>`: mechanical review of a finished research branch.
+- `stats [show <id>|record|backfill|calibrate]`: cost and yield per research round (`lineage round stats <id>`).
 - `guard`: keeps research rounds running across usage limits.
 - `archive search|show`: search and view records on Open Archives.
 - `rat search|item|download|throttle|crop`: Regionaal Archief Tilburg inventory, scans and crops.

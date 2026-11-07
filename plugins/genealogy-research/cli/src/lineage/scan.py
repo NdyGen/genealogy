@@ -28,7 +28,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from lineage import archive, rat, settings, web
+from lineage import archive, metrics, rat, settings, web
 from lineage.i18n import t
 
 MEMORIX = re.compile(
@@ -281,6 +281,7 @@ def _archieven_fif(viewer: str, name: str, download: bool = True) -> tuple[str, 
 
     with page() as p:
         p.on("request", lambda r: found.append(r.url) if "Zoomify=" in r.url else None)
+        metrics.record("browser", urllib.parse.urlsplit(viewer).netloc)
         p.goto(viewer, wait_until="networkidle", timeout=90_000)
         index = _page_to(p, name) if name else -1
         if index < 0:
@@ -345,6 +346,7 @@ def _archieven_set(url: str, maximum: int) -> tuple[list[tuple[str, str, str, st
     result: list[tuple[str, str, str, str]] = []
     with page() as p:
         p.on("request", lambda r: seen.append(r.url) if "Zoomify=" in r.url else None)
+        metrics.record("browser", urllib.parse.urlsplit(url).netloc)
         p.goto(url, wait_until="networkidle", timeout=90_000)
         thumbnails = p.locator("img[src*='format=thumb']")
         count = thumbnails.count()
@@ -381,6 +383,7 @@ def _largest_image(url: str, screenshot: bool = True) -> tuple[bytes, str]:
 
     with page() as p:
         p.on("response", keep)
+        metrics.record("browser", urllib.parse.urlsplit(url).netloc)
         p.goto(url, wait_until="networkidle", timeout=90_000)
         p.wait_for_timeout(3000)
         download = mais_download(p.evaluate(MAIS_SELECTED) or "")

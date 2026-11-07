@@ -15,6 +15,7 @@ from lineage import (
     browser,
     build,
     coordinates,
+    costs,
     disk,
     doctor,
     edit,
@@ -36,6 +37,7 @@ from lineage import (
     reports,
     requests,
     review,
+    roundstats,
     scaffold,
     scan,
     settings,
@@ -533,6 +535,68 @@ def cmd_review(args: argparse.Namespace) -> int:
     return 1 if outcome.errors else 0
 
 
+def cmd_stats(args: argparse.Namespace) -> int:
+    root = roundstats.main_root(_project().root)
+    if args.stats_command == "show":
+        return _stats_show(root, args.id.strip("@").upper(), args.live)
+    if args.stats_command == "record":
+        found = roundstats.record(root, args.id.strip("@").upper(), args.base, args.tip)
+        print(roundstats.cost_line(found))
+        print(roundstats.describe(found))
+        return 0
+    if args.stats_command == "backfill":
+        done = roundstats.backfill(root, force=args.force)
+        path = roundstats.stats_path(root).relative_to(root)
+        print(t("{count} rounds written to {path}", count=done, path=path))
+        return 0
+    if args.stats_command == "calibrate":
+        return _stats_calibrate(args)
+    print(roundstats.summary(roundstats.read_rows(roundstats.stats_path(root))))
+    return 0
+
+
+def _stats_show(root: Path, pid: str, live: bool) -> int:
+    rows = [r for r in roundstats.read_rows(roundstats.stats_path(root)) if r["id"] == pid]
+    if not rows or live:
+        try:
+            rows = [roundstats.live(root, pid)]
+        except subprocess.CalledProcessError:
+            if not rows:
+                print(t("{id}: not in the stats file and no branch dr/{id}", id=pid), file=sys.stderr)
+                return 2
+    print("\n\n".join(roundstats.describe(r) for r in rows))
+    return 0
+
+
+def _stats_calibrate(args: argparse.Namespace) -> int:
+    project = _project()
+    prices = costs.table(project)
+    accounts = costs.account_dirs(project)
+    for name in [args.account] if args.account else list(accounts):
+        if name not in accounts:
+            print(t("unknown account: {name}", name=name), file=sys.stderr)
+            return 2
+        weeks = costs.calibrate(accounts[name], prices)
+        for week in weeks:
+            print(t(
+                "{account}: week {start} to weekly limit {hit}: EUR {eur} at API prices, EUR {month} per month",
+                account=name, start=f"{week.start:%Y-%m-%d %H:%M}", hit=f"{week.hit:%Y-%m-%d %H:%M}",
+                eur=f"{week.api_eur:.2f}", month=f"{week.monthly:.0f}",
+            ) + ("" if week.complete else t(" (incomplete: the week began before the oldest transcript; not counted)")))  # fmt: skip
+        budget = costs.monthly_budget(weeks)
+        if budget is None:
+            print(t("{account}: no complete week ending in a weekly-limit hit; nothing to calibrate", account=name))
+            continue
+        print(t("{account}: monthly budget EUR {budget} (median of {count} weeks)",
+                account=name, budget=f"{budget:.0f}", count=sum(w.complete for w in weeks)))  # fmt: skip
+        if args.write:
+            project.require(str(project.file or ""), "lineage.toml")
+            values = {"monthly_budget_eur": f"{budget:.0f}", "calibrated": f'"{dt.date.today().isoformat()}"'}
+            costs.write_account_values(project.file, name, values)
+            print(t("written to {file}", file=project.file))
+    return 0
+
+
 def cmd_stale(tree: Tree, args: argparse.Namespace) -> int:
     if args.checked:
         for pid in args.id:
@@ -827,7 +891,8 @@ def _settings_from_args(base: settings.Config, args: argparse.Namespace) -> sett
         stems.append(settings.Stem(name, pid.upper(), flag == "men-first"))
     accounts = dict(base.accounts)
     for name, config_dir in _pairs(args.account, "--account"):
-        accounts[name] = {} if config_dir == "-" else {"config_dir": config_dir}
+        kept = {k: v for k, v in base.accounts.get(name, {}).items() if k != "config_dir"}
+        accounts[name] = kept if config_dir == "-" else {**kept, "config_dir": config_dir}
     c = scaffold.merged(
         base,
         name=args.name,
@@ -1201,6 +1266,28 @@ def build_parser() -> argparse.ArgumentParser:
     )
     review_parser.add_argument("id")
     review_parser.set_defaults(offline=cmd_review)
+
+    stats_parser = commands.add_parser(
+        "stats", help="cost and yield per research round (the stats file); without a command: the summary"
+    )
+    stats_parser.set_defaults(offline=cmd_stats, stats_command=None)
+    stats_commands = stats_parser.add_subparsers(dest="stats_command")
+    stats_show = stats_commands.add_parser("show", help="one round: from the stats file, else from its branch")
+    stats_show.add_argument("id")
+    stats_show.add_argument("--live", action="store_true", help="compute from the branch even when recorded")
+    stats_record = stats_commands.add_parser("record", help="write the row of a round being merged (round merge)")
+    stats_record.add_argument("id")
+    stats_record.add_argument("--base", required=True, help="the commit the round's branch started from")
+    stats_record.add_argument("--tip", required=True, help="the last commit of the round's branch")
+    stats_backfill = stats_commands.add_parser(
+        "backfill", help="add every merged round that is not in the stats file yet, from git and transcripts"
+    )
+    stats_backfill.add_argument("--force", action="store_true", help="recompute rounds already in the file")
+    stats_calibrate = stats_commands.add_parser(
+        "calibrate", help="monthly budget per account from the weeks that ended in a weekly-limit hit"
+    )
+    stats_calibrate.add_argument("--account", help="only this account")
+    stats_calibrate.add_argument("--write", action="store_true", help="write the budget into lineage.toml")
 
     stale_parser = commands.add_parser(
         "stale",
@@ -1626,6 +1713,7 @@ def _run(args: argparse.Namespace) -> int:
             browser.BrowserError,
             gramps.GrampsError,
             htr.HtrError,
+            costs.PriceError,
         ) as exc:
             print(exc, file=sys.stderr)
             return 2

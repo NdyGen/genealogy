@@ -13,7 +13,7 @@ plugins/genealogy-research/
   scripts/round/
     runner.sh                      # sourced: picks the runner, loads runner-<name>.sh, common helpers
     runner-hc.sh  runner-herdr.sh  runner-headless.sh  runner-inline.sh
-    start.sh  helper.sh  finish.sh  merge.sh  undo.sh  watch.sh  start-guard.sh  start-coordinator.sh
+    start.sh  helper.sh  finish.sh  merge.sh  stats.sh  undo.sh  watch.sh  start-guard.sh  start-coordinator.sh
   skills/deep-research/            # SKILL.md, references/{report.md, sources-nl.md, lessons.md}, evals/
   skills/coordinate/               # SKILL.md (was references/coordinatie.md); user-invoked only
   skills/life-book/                # was levensboek; scripts/pdf.py
@@ -87,6 +87,43 @@ New CLI commands for the scripts:
   PATH, else `herdr` when `HERDR_ENV=1` and `herdr` is on PATH, else `inline`.
 - `lineage config accounts`: one line per account, `name<TAB>config_dir` (config_dir empty for the
   default). Without `[accounts]` a single line `default<TAB>`.
+
+## Cost per round (`lineage stats`)
+
+`round merge` writes one row per round to the stats file (`lineage config path stats`, default
+`research/stats.tsv`) with `lineage stats record`. `lineage round stats <ID>` (or `lineage stats show <ID>`)
+shows one round, before the merge computed from its branch; `lineage stats` summarises all rows (median and
+mean cost per ancestor, cost per fact, by kind, century and region, and the share of leader, helpers and
+review). `lineage stats backfill` adds every merged round from git and the transcripts that still exist.
+
+Where the numbers come from:
+
+- **Rounds**: a merge commit `Merge branch 'dr/<ID>'`, or after a fast-forward the commit
+  `Deep research <ID> merged` that follows the branch's commits. The round runs from its fork point (the
+  start commit) to the merge. Kind: `follow-up` from the start commit, `update` when the branch touched
+  neither tree nor queue, else `normal`.
+- **Tokens**: the Claude Code transcripts of the worktree (`<config_dir>/projects/<path with every
+  non-alphanumeric as ->`) on every account, between fork and merge. A session that starts with "Read the
+  brief" or is an Agent-tool sub-agent counts as a helper, the rest as the leader. Usage is counted once
+  per message id (Claude Code writes a line per content block). The coordinator's review is its turns
+  (and its sub-agents') in the main checkout from the first command that names the round after the
+  round's last commit up to `round merge <ID>` (without a merge call in the transcripts, as from a
+  background task, up to the last command naming the round before the merge); overlapping review windows
+  split the cost evenly. A round counts as measured only when its own worktree sessions were found.
+- **Active time**: the union over all sessions of the stretches between lines at most ten minutes apart;
+  waiting on a limit does not count.
+- **Cost**: API list prices in EUR (`[prices]` in `lineage.toml` overrides a model or `usd_eur`), and the
+  subscription share `api_eur / monthly_budget_eur x subscription_eur` per account. `lineage stats
+  calibrate [--write]` sets `monthly_budget_eur`: the API-equivalent use of the account (all projects) in
+  the week before a weekly-limit hit, scaled to a month (median over such weeks). `subscription_eur`, the
+  monthly price, is set by hand.
+- **Yield**: the GEDCOM diff between fork and tip (events added, changed, removed; persons, families,
+  citations) and the IDs added to the queue.
+- **Archives**: `<output>/metrics.jsonl` in the worktree, appended by `lineage` itself for every Open
+  Archieven, RAT, web and browser request made inside a round's worktree; scans counted in the output
+  folder (after the merge in the sources folder); Transkribus credits from the HTR log by the `dr-<ID>/`
+  in the image path. Only rounds since the counters exist have archive numbers.
+- Opencode rounds get a row with yield and empty token columns.
 
 ## Runner interface (scripts/round/runner.sh)
 
