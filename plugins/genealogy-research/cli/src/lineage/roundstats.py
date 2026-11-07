@@ -2,8 +2,8 @@
 
 A round is the branch dr/<ID> from its fork point (base) to its tip, merged into main. Its Claude sessions
 are the transcripts of its worktree (.worktrees/dr-<ID>) between the fork and the merge, on every account;
-the coordinator's review is its turns between `lineage review <ID>` and `round merge <ID>` in the main
-checkout. Yield is counted from the GEDCOM diff between base and tip.
+the coordinator's review is its turns in the main checkout between the round's last own activity and
+`round merge <ID>`. Yield is counted from the GEDCOM diff between base and tip.
 """
 
 from __future__ import annotations
@@ -158,6 +158,8 @@ class Spend:
     limit_hits: int = 0
     tool_calls: int = 0
     active: dt.timedelta = dt.timedelta()
+    # The last turn of the round's own sessions: where the coordinator's review can begin.
+    last: dt.datetime | None = None
 
     def add(self, role: str, model: str, account: str, usage: Usage, weight: float = 1.0) -> None:
         self.usage.setdefault((role, model, account), Usage()).add(usage, weight)
@@ -173,12 +175,20 @@ class Coordinator:
     """The coordinator's review of each round in the main checkout's sessions, read once.
 
     A review window runs from the first command (of the session or its sub-agents) that names the round's
-    ID after the round's last commit, to the merge call. Older coordinators had no `review` command, so the
+    ID after the round's own sessions ended, to the merge call. Not after its last commit: the coordinator
+    commits its corrections on the round's branch. Older coordinators had no `review` command, so the
     window does not depend on it. Where no merge call is in the transcripts (a merge from a background task
     or the watcher), the window runs to the last command naming the ID before the merge. Turns inside two
     windows are split between both rounds."""
 
-    def __init__(self, root: Path, accounts: dict[str, Path], since: dt.datetime, rounds: list[Round]):
+    def __init__(
+        self,
+        root: Path,
+        accounts: dict[str, Path],
+        since: dt.datetime,
+        rounds: list[Round],
+        ends: dict[str, dt.datetime] | None = None,
+    ):
         # (account, session family, round tip, start, end); the family is the session and its sub-agents.
         self.windows: list[tuple[str, list[Session], str, dt.datetime, dt.datetime]] = []
         sessions: list[tuple[str, Session]] = []
@@ -214,15 +224,16 @@ class Coordinator:
             if r.merged is None:
                 continue
             late = r.merged + dt.timedelta(minutes=10)
+            finished = (ends or {}).get(r.tip) or r.finished
             found = []
             for account, family, named, merges in indexed:
                 for pid, call in merges:
-                    if pid == r.id and r.finished <= call <= late:
-                        first = [t for t in named.get(pid, []) if r.finished <= t <= call]
+                    if pid == r.id and finished <= call <= late:
+                        first = [t for t in named.get(pid, []) if finished <= t <= call]
                         found.append((account, family, r.tip, min(first, default=call), call))
             if not found:
                 for account, family, named, _ in indexed:
-                    inside = [t for t in named.get(r.id, []) if r.finished <= t <= late]
+                    inside = [t for t in named.get(r.id, []) if finished <= t <= late]
                     if inside:
                         found.append((account, family, r.tip, inside[0], inside[-1]))
             self.windows += found
@@ -238,9 +249,7 @@ class Coordinator:
                     into.add("review", message.model, account, message.usage, 1 / overlap)
 
 
-def round_spend(
-    root: Path, round_: Round, accounts: dict[str, Path], coordinator: Coordinator | None
-) -> Spend:
+def round_spend(root: Path, round_: Round, accounts: dict[str, Path]) -> Spend:
     spend = Spend()
     end = round_.merged or dt.datetime.now(dt.UTC)
     worktree = root / ".worktrees" / f"dr-{round_.id}"
@@ -258,10 +267,26 @@ def round_spend(
             for message in inside:
                 spend.add(role, message.model, account, message.usage)
                 spend.tool_calls += len(message.tool_uses)
+            latest = max(m.time for m in inside)
+            spend.last = max(spend.last or latest, latest)
     spend.active = transcripts.active_time(times, round_.start, end)
-    if coordinator is not None:
-        coordinator.spend(round_, spend)
     return spend
+
+
+def measure(
+    root: Path, rounds: list[Round], accounts: dict[str, Path], notify=None
+) -> dict[str, Spend]:
+    """Each round's own spend plus the coordinator's review of it, by the round's tip."""
+    spends = {}
+    for i, r in enumerate(rounds, 1):
+        spends[r.tip] = round_spend(root, r, accounts)
+        if notify and i % 100 == 0:
+            notify(t("{done} of {total} rounds", done=i, total=len(rounds)))
+    ends = {tip: s.last for tip, s in spends.items() if s.last}
+    coordinator = Coordinator(root, accounts, min(r.start for r in rounds), rounds, ends)
+    for r in rounds:
+        coordinator.spend(r, spends[r.tip])
+    return spends
 
 
 # --- yield from the GEDCOM diff ------------------------------------------------------------------------
@@ -407,11 +432,8 @@ def _mb(size: int) -> str:
     return f"{size / 1_000_000:.1f}"
 
 
-def row(
-    root: Path, round_: Round, accounts: dict[str, Path], coordinator: Coordinator | None
-) -> dict[str, str]:
+def row(root: Path, round_: Round, spend: Spend) -> dict[str, str]:
     prices = costs.table()
-    spend = round_spend(root, round_, accounts, coordinator)
     out: dict[str, str] = {c: "" for c in COLUMNS}
     # Review turns alone (an opencode round, transcripts already deleted) do not make a measured round.
     found = spend.sessions.total() > 0
@@ -506,8 +528,8 @@ def record(root: Path, pid: str, base: str, tip: str) -> dict[str, str]:
     round_ = make_round(root, pid, base, tip, dt.datetime.now(dt.UTC))
     accounts = costs.account_dirs()
     recent = merged_rounds(root, main_branch(root), since=round_.start - dt.timedelta(days=1))
-    coordinator = Coordinator(root, accounts, round_.start, [*recent, round_])
-    found = row(root, round_, accounts, coordinator)
+    spend = measure(root, [*recent, round_], accounts)[round_.tip]
+    found = row(root, round_, spend)
     upsert(stats_path(root), [found])
     return found
 
@@ -516,7 +538,8 @@ def live(root: Path, pid: str) -> dict[str, str]:
     """The row of a round not merged yet, from its branch (no coordinator review counted)."""
     tip = _git(root, "rev-parse", f"dr/{pid}").strip()
     base = _git(root, "merge-base", main_branch(root), tip).strip()
-    return row(root, make_round(root, pid, base, tip, None), costs.account_dirs(), None)
+    round_ = make_round(root, pid, base, tip, None)
+    return row(root, round_, round_spend(root, round_, costs.account_dirs()))
 
 
 def backfill(root: Path, force: bool = False, notify=print) -> int:
@@ -529,11 +552,10 @@ def backfill(root: Path, force: bool = False, notify=print) -> int:
     ]
     if not todo:
         return 0
-    accounts = costs.account_dirs()
-    coordinator = Coordinator(root, accounts, min(r.start for r in todo), todo)
+    spends = measure(root, todo, costs.account_dirs(), notify)
     rows = []
     for i, round_ in enumerate(todo, 1):
-        rows.append(row(root, round_, accounts, coordinator))
+        rows.append(row(root, round_, spends[round_.tip]))
         if i % 25 == 0:
             notify(t("{done} of {total} rounds", done=i, total=len(todo)))
             upsert(path, rows)

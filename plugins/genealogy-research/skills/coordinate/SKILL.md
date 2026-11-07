@@ -106,7 +106,7 @@ The script:
 1. merges the branch, keeping both sides of log, questions, queue and reports;
 2. normalizes the queue and removes duplicate source records;
 3. sets the person to done, adds to them in the tree the note `Deep research <date>: <report>` (an earlier round's is replaced), and validates and tests;
-4. records the round's cost and yield in the stats file (`lineage config path stats`; commit `Stats: <ID>`), including your review turns from the first command naming the round after its last commit to `round merge <ID>`;
+4. records the round's cost and yield in the stats file (`lineage config path stats`; commit `Stats: <ID>`), including your review turns from the first command naming the round after its leader and helpers stopped to `round merge <ID>`;
 5. keeps the scans in the project's scans folder (outside git);
 6. closes the round's tab (hc: its terminals) if still open, and removes worktree and branch;
 7. removes Claude Code's temp folders (`/tmp/claude-<uid>/...--worktrees-dr-<ID>`) of every worktree that no longer exists. They would otherwise stay and fill the /tmp quota, after which Bash output and `mktemp` fail.

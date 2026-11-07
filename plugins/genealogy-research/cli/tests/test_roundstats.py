@@ -224,13 +224,15 @@ def repo(tmp_path):
     return root
 
 
-def _round(root: Path, pid: str, start: float, end: float, *, fast_forward: bool) -> None:
+def _round(root: Path, pid: str, start: float, end: float, *, fast_forward: bool, fix_at: float | None = None) -> None:
     _commit(root, f"Queue: deep research {pid} started", start, {"research/queue.tsv": QUEUE + f"{pid}\tin_progress\n"})
     _git(root, "checkout", "-qb", f"dr/{pid}")
     _commit(root, f"{pid}: baptism", start + 5, {
         "data/tree.ged": ged(*PERSON, "1 CHR", "2 DATE 13 MAR 1702") + "\n",
         "research/queue.tsv": QUEUE + f"{pid}\tin_progress\nI7\topen\n",
     })  # fmt: skip
+    if fix_at is not None:
+        _commit(root, f"{pid}: correction after review", fix_at, {"reports/persons/I1.md": "fixed\n"})
     _git(root, "checkout", "-q", "main")
     if not fast_forward:
         _commit(root, "Log", start + 6, {"research/log.md": "x\n"})
@@ -273,7 +275,7 @@ def test_row_attributes_sessions_review_and_counters(repo, tmp_path):
 
     [round_] = roundstats.merged_rounds(repo)
     accounts = costs.account_dirs()
-    row = roundstats.row(repo, round_, accounts, roundstats.Coordinator(repo, accounts, round_.start, [round_]))
+    row = roundstats.row(repo, round_, roundstats.measure(repo, [round_], accounts)[round_.tip])
     assert (row["leader_sessions"], row["helper_sessions"], row["tool_calls"]) == ("1", "1", "1")
     assert row["leader_out"] == "200" and row["helpers_out"] == "200"
     assert row["review_out"] == "400"  # c1, c2, c3 and the sub-agent; c00 is before the finish, c0 names another round
@@ -317,7 +319,19 @@ def test_review_without_merge_call_runs_to_the_last_command_naming_the_round(rep
                   assistant(20, "c4"))
     [round_] = roundstats.merged_rounds(repo)
     accounts = costs.account_dirs()
-    row = roundstats.row(repo, round_, accounts, roundstats.Coordinator(repo, accounts, round_.start, [round_]))
+    row = roundstats.row(repo, round_, roundstats.measure(repo, [round_], accounts)[round_.tip])
+    assert row["review_out"] == "300"
+
+
+def test_review_begins_after_the_rounds_own_sessions_not_after_its_last_commit(repo, tmp_path):
+    _round(repo, "I1", 0, 30, fast_forward=False, fix_at=28)
+    write_session(transcripts.project_dir(tmp_path / "cfg", repo / ".worktrees" / "dr-I1") / "a.jsonl",
+                  user(1, "Use the deep-research skill"), assistant(4, "l1"))
+    main = transcripts.project_dir(tmp_path / "cfg", repo)
+    write_session(main / "co.jsonl", assistant(10, "c1", blocks=[bash("git -C .worktrees/dr-I1 diff")]),
+                  assistant(20, "c2"), assistant(29, "c3", blocks=[bash("lineage round merge I1", "t2")]))
+    [round_] = roundstats.merged_rounds(repo)
+    row = roundstats.row(repo, round_, roundstats.measure(repo, [round_], costs.account_dirs())[round_.tip])
     assert row["review_out"] == "300"
 
 
@@ -328,7 +342,7 @@ def test_review_alone_is_not_a_measured_round(repo, tmp_path):
                   assistant(29, "c3", blocks=[bash("lineage round merge I1", "t9")]))
     [round_] = roundstats.merged_rounds(repo)
     accounts = costs.account_dirs()
-    row = roundstats.row(repo, round_, accounts, roundstats.Coordinator(repo, accounts, round_.start, [round_]))
+    row = roundstats.row(repo, round_, roundstats.measure(repo, [round_], accounts)[round_.tip])
     assert row["runtime"] == "" and row["api_eur"] == ""
 
 
