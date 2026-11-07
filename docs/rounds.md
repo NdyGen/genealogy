@@ -106,8 +106,8 @@ Where the numbers come from:
   non-alphanumeric as ->`) on every account, between fork and merge. A session that starts with "Read the
   brief" or is an Agent-tool sub-agent counts as a helper, the rest as the leader. Usage is counted once
   per message id (Claude Code writes a line per content block). The coordinator's review is its turns
-  (and its sub-agents') in the main checkout between `lineage review <ID>` and `round merge <ID>`;
-  overlapping review windows split the cost evenly.
+  (and its sub-agents') in the main checkout from the first command that names the round after the
+  round's last commit up to `round merge <ID>`; overlapping review windows split the cost evenly.
 - **Active time**: the union over all sessions of the stretches between lines at most ten minutes apart;
   waiting on a limit does not count.
 - **Cost**: API list prices in EUR (`[prices]` in `lineage.toml` overrides a model or `usd_eur`), and the
