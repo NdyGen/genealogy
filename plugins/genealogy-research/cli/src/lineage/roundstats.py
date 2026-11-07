@@ -639,6 +639,19 @@ def summary(rows: list[dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
+def cost_line(r: dict[str, str]) -> str:
+    """One line for the coordinator's report of a merge."""
+    facts = sum(int(r[k] or 0) for k in ("events_added", "events_changed", "events_removed"))
+    api = _float(r["api_eur"])
+    per_fact = f"{api / facts:.2f}" if api is not None and facts else "-"
+    return t(
+        "cost {id}: EUR {api} at API prices (review EUR {review}), subscription EUR {sub}; "
+        "{minutes} min active; {facts} facts, EUR {per_fact} per fact",
+        id=r["id"], api=r["api_eur"] or "-", review=r["api_eur_review"] or "-", sub=r["sub_eur"] or "-",
+        minutes=r["active_min"] or "-", facts=facts, per_fact=per_fact,
+    )  # fmt: skip
+
+
 def describe(r: dict[str, str]) -> str:
     """One round, human readable."""
 

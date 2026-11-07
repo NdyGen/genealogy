@@ -540,7 +540,9 @@ def cmd_stats(args: argparse.Namespace) -> int:
     if args.stats_command == "show":
         return _stats_show(root, args.id.strip("@").upper(), args.live)
     if args.stats_command == "record":
-        print(roundstats.describe(roundstats.record(root, args.id.strip("@").upper(), args.base, args.tip)))
+        found = roundstats.record(root, args.id.strip("@").upper(), args.base, args.tip)
+        print(roundstats.cost_line(found))
+        print(roundstats.describe(found))
         return 0
     if args.stats_command == "backfill":
         done = roundstats.backfill(root, force=args.force)

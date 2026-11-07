@@ -113,6 +113,8 @@ The script:
 
 With `--keep` worktree, branch and tab stay.
 
+**Cost in every merge report.** `round merge` prints a line `cost <ID>: EUR ... at API prices (review EUR ...), subscription EUR ...; ... min active; ... facts, EUR ... per fact` (in the project's language). Put that line, as printed, in every message to the user about a merged round. Without it (the line `warning: no stats recorded`), say so and give `lineage round stats <ID>` instead.
+
 **After the merge** come the steps `project.md` names: for example update a site, a blog proposal at `Blog-worthy: yes` (Dutch: `Blogwaardig: ja`), a notice when a line became one generation longer. A blog post is never written by the lead itself; it comes only after the user's choice.
 
 **Question map.** After the merge (and after updating the questions file): `lineage question-map` and republish the page `reports/question-map.html` where `project.md` says (for example to the same artifact URL; pass the `url` when publishing from another session). Commit the question-map history table with it: every update is a measuring point in the progression.

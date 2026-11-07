@@ -287,6 +287,9 @@ def test_row_attributes_sessions_review_and_counters(repo, tmp_path):
     )
     assert row["sub_eur"] == ""
 
+    line = roundstats.cost_line(row)
+    assert line.startswith(f"cost I1: EUR {row['api_eur']} at API prices (review EUR {row['api_eur_review']})")
+    assert line.endswith(f"min active; 1 facts, EUR {float(row['api_eur']):.2f} per fact")
     path = roundstats.stats_path(repo)
     roundstats.upsert(path, [row])
     roundstats.upsert(path, [row])

@@ -110,7 +110,7 @@ fi
 # Cost and yield of the round for `lineage stats`, while the worktree (its counters and scans) still exists.
 # A failure here is reported, never a reason to stop the merge.
 if lineage stats record "$ID" --base "$(git merge-base "$BEFORE" "$BRANCH")" --tip "$(git rev-parse "$BRANCH")" > "$TMP/stats" 2>&1; then
-  sed -n 2p "$TMP/stats"
+  sed -n 1p "$TMP/stats"
   git add "$STATS"
   git diff --cached --quiet || git commit -qm "Stats: $ID" -- "$STATS"
 else
