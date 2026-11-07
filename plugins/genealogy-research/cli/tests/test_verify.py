@@ -176,3 +176,72 @@ def test_strict_setting(tmp_path: Path):
     config = settings.parse(file.read_text(), file)
     assert config.verify_strict
     assert "[verify]\nstrict = true" in settings.dump(config)
+
+
+def _baptism(child: str, father: str, mother: str, date=(5, 6, 1800)) -> Record:
+    return _record("Doop", date, "Breda", ("Kind", child), ("Vader", father), ("Moeder", mother))
+
+
+def _family_tree(child_lines: list[str]) -> str:
+    return ged(
+        _person("I1", "Jan /Dekkers/", "1 FAMS @F1@"),
+        _person("I2", "Kee /Smit/", "1 FAMS @F1@"),
+        _person("I3", "Anna /Dekkers/", *child_lines),
+        "0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 CHIL @I3@",
+    )
+
+
+OTHER = "https://www.openarchieven.nl/abc:99999999-2222-3333-4444-555555555555"
+OTHER_REF = "abc:99999999-2222-3333-4444-555555555555"
+
+
+def test_link_on_one_baptism_and_nothing_else_is_single(records):
+    records[REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
+    result = verify.verify("", _family_tree(["1 FAMC @F1@", _cite()]))
+    assert result.links["single"] == 1 and not result.errors
+
+
+def test_link_with_a_death_whose_age_fits_is_independent(records):
+    records[REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
+    records[OTHER_REF] = _record("Overlijden", (1, 1, 1860), "Breda", ("Overledene", "Anna Dekkers"))
+    records[OTHER_REF].persons[0].age = "59"
+    tree = _family_tree(["1 FAMC @F1@", _cite(), "1 DEAT", "2 DATE 1 JAN 1860", _cite(OTHER)])
+    result = verify.verify("", tree)
+    assert result.links["independent"] == 1 and not result.errors
+
+
+def test_link_whose_other_records_confirm_nothing_is_weak(records):
+    records[REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
+    records[OTHER_REF] = _record("Overlijden", (1, 1, 1860), "Breda", ("Overledene", "Anna Dekkers"))
+    records[OTHER_REF].persons[0].age = "30"
+    tree = _family_tree(["1 FAMC @F1@", _cite(), "1 DEAT", "2 DATE 1 JAN 1860", _cite(OTHER)])
+    result = verify.verify("", tree)
+    assert result.links["weak"] == 1
+    assert any("FAMC @F1@" in e for e in result.errors)
+
+
+def test_two_indexes_of_one_baptism_count_once(records):
+    records[REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
+    records[OTHER_REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
+    text = _family_tree(["1 FAMC @F1@", _cite(), _cite(OTHER)])
+    cited = verify.facts(text)
+    assert verify.link_support(cited[0], cited, verify.parse(text)) == (1, 0, False)
+
+
+def test_probable_link_is_not_judged(records):
+    records[REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
+    assert not verify.verify("", _family_tree(["1 FAMC @F1@", _cite(quay="1")])).links
+
+
+def test_uncited_link_is_judged_on_the_childs_records(records):
+    records[REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
+    old = _family_tree(["1 BAPM", "2 DATE 5 JUN 1800", _cite()])
+    new = _family_tree(["1 FAMC @F1@", "1 BAPM", "2 DATE 5 JUN 1800", _cite()])
+    assert verify.verify(old, new).links == {"single": 1}
+    assert not verify.verify(new, new).links
+
+
+def test_year_words_that_do_not_match_the_conversion():
+    found = verify.year_readings({"01-scan.md": '- year in words: "1700 Zeeven entagtig" = 1777\n'
+                                                '- year in words: "1700 zeven en tachtig" = 1787'})
+    assert found == ['01-scan.md: "1700 Zeeven entagtig" is 1787, not 1777']
