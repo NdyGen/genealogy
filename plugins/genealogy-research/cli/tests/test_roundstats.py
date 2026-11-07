@@ -304,6 +304,31 @@ def test_older_command_and_prompt_names_are_recognised(tmp_path):
     assert roundstats._MERGE_CALL.findall("lineage round merge I5 --keep") == ["I5"]
 
 
+def test_review_without_merge_call_runs_to_the_last_command_naming_the_round(repo, tmp_path):
+    _round(repo, "I1", 0, 30, fast_forward=False)
+    write_session(transcripts.project_dir(tmp_path / "cfg", repo / ".worktrees" / "dr-I1") / "a.jsonl",
+                  user(1, "Use the deep-research skill"), assistant(2, "l1"))
+    main = transcripts.project_dir(tmp_path / "cfg", repo)
+    write_session(main / "co.jsonl", assistant(10, "c1", blocks=[bash("git -C .worktrees/dr-I1 diff")]),
+                  assistant(12, "c2"), assistant(14, "c3", blocks=[bash("grep x reports/persons/I1.md", "t2")]),
+                  assistant(20, "c4"))
+    [round_] = roundstats.merged_rounds(repo)
+    accounts = costs.account_dirs()
+    row = roundstats.row(repo, round_, accounts, roundstats.Coordinator(repo, accounts, round_.start, [round_]))
+    assert row["review_out"] == "300"
+
+
+def test_review_alone_is_not_a_measured_round(repo, tmp_path):
+    _round(repo, "I1", 0, 30, fast_forward=False)
+    main = transcripts.project_dir(tmp_path / "cfg", repo)
+    write_session(main / "co.jsonl", assistant(25, "c1", blocks=[bash("lineage review I1")]),
+                  assistant(29, "c3", blocks=[bash("lineage round merge I1", "t9")]))
+    [round_] = roundstats.merged_rounds(repo)
+    accounts = costs.account_dirs()
+    row = roundstats.row(repo, round_, accounts, roundstats.Coordinator(repo, accounts, round_.start, [round_]))
+    assert row["runtime"] == "" and row["api_eur"] == ""
+
+
 def test_metrics_only_inside_a_round_worktree(tmp_path, monkeypatch):
     worktree = tmp_path / ".worktrees" / "dr-I1"
     (worktree / "sub").mkdir(parents=True)

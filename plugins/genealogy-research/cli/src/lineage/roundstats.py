@@ -40,6 +40,8 @@ _FOLLOW_UP = re.compile(r"follow-up|vervolgronde")
 _MERGE = re.compile(r"^Merge branch 'dr/([^']+)'")
 _MERGED = re.compile(r"^Deep research (\S+) (?:merged|samengevoegd):")
 # Rounds before the plugin merged with `samenvoegen.sh`.
+# Any word of a command may be a record ID; only the IDs of known rounds are kept.
+_WORD = re.compile(r"[A-Za-z0-9_]+")
 _MERGE_CALL = re.compile(r"(?:round merge|merge\.sh|samenvoegen(?:\.sh)?)\s+@?(\w+)")
 _HELPER_PROMPT = re.compile(r"^(?:Read the brief|Lees de opdracht)")
 # Countries whose places are written "place, province, country"; elsewhere the country is the region.
@@ -172,10 +174,13 @@ class Coordinator:
 
     A review window runs from the first command (of the session or its sub-agents) that names the round's
     ID after the round's last commit, to the merge call. Older coordinators had no `review` command, so the
-    window does not depend on it. Turns inside two windows are split between both rounds."""
+    window does not depend on it. Where no merge call is in the transcripts (a merge from a background task
+    or the watcher), the window runs to the last command naming the ID before the merge. Turns inside two
+    windows are split between both rounds."""
 
     def __init__(self, root: Path, accounts: dict[str, Path], since: dt.datetime, rounds: list[Round]):
-        self.windows: list[tuple[str, Session, list[Session], str, dt.datetime, dt.datetime]] = []
+        # (account, session family, round tip, start, end); the family is the session and its sub-agents.
+        self.windows: list[tuple[str, list[Session], str, dt.datetime, dt.datetime]] = []
         sessions: list[tuple[str, Session]] = []
         # A review sub-agent (<session id>/subagents/*.jsonl) works inside its parent's window.
         children: dict[Path, list[Session]] = collections.defaultdict(list)
@@ -189,42 +194,44 @@ class Coordinator:
                     children[parent.with_suffix(".jsonl")].append(session)
                 else:
                     sessions.append((account, session))
-        by_id: dict[str, list[Round]] = collections.defaultdict(list)
-        for r in rounds:
-            by_id[r.id].append(r)
+        wanted = {r.id for r in rounds}
+        indexed = []
         for account, session in sessions:
             family = [session, *children.get(session.path, [])]
-            mentions = [(m.time, c) for s in family for m in s.messages.values() for c in m.commands]
-            for message in session.messages.values():
+            named: dict[str, list[dt.datetime]] = collections.defaultdict(list)
+            for message in (m for s in family for m in s.messages.values()):
                 for command in message.commands:
-                    for pid in {p.upper() for p in _MERGE_CALL.findall(command)}:
-                        round_ = self._round_of(by_id[pid], message.time)
-                        if round_ is None:
-                            continue
-                        named = [
-                            when
-                            for when, c in mentions
-                            if round_.finished <= when <= message.time and re.search(rf"\b{pid}\b", c, re.I)
-                        ]
-                        start = min(named, default=message.time)
-                        self.windows.append((account, session, family, pid, start, message.time))
-
-    @staticmethod
-    def _round_of(candidates: list[Round], call: dt.datetime) -> Round | None:
-        for r in candidates:
-            merged = r.merged or dt.datetime.now(dt.UTC)
-            if r.finished <= call <= merged + dt.timedelta(minutes=10):
-                return r
-        return None
+                    for pid in {w.upper() for w in _WORD.findall(command)} & wanted:
+                        named[pid].append(message.time)
+            merges = [
+                (pid.upper(), m.time)
+                for m in session.messages.values()
+                for c in m.commands
+                for pid in _MERGE_CALL.findall(c)
+            ]
+            indexed.append((account, family, {k: sorted(v) for k, v in named.items()}, merges))
+        for r in rounds:
+            if r.merged is None:
+                continue
+            late = r.merged + dt.timedelta(minutes=10)
+            found = []
+            for account, family, named, merges in indexed:
+                for pid, call in merges:
+                    if pid == r.id and r.finished <= call <= late:
+                        first = [t for t in named.get(pid, []) if r.finished <= t <= call]
+                        found.append((account, family, r.tip, min(first, default=call), call))
+            if not found:
+                for account, family, named, _ in indexed:
+                    inside = [t for t in named.get(r.id, []) if r.finished <= t <= late]
+                    if inside:
+                        found.append((account, family, r.tip, inside[0], inside[-1]))
+            self.windows += found
 
     def spend(self, round_: Round, into: Spend) -> None:
-        if round_.merged is None:
-            return
-        late = round_.merged + dt.timedelta(minutes=10)
-        for account, session, family, pid, start, end in self.windows:
-            if pid != round_.id or not round_.finished <= end <= late:
+        for account, family, tip, start, end in self.windows:
+            if tip != round_.tip:
                 continue
-            others = [(s, e) for _, sess, _, _, s, e in self.windows if sess is session]
+            others = [(s, e) for _, fam, _, s, e in self.windows if fam[0] is family[0]]
             for message in (m for s in family for m in s.messages.values()):
                 if start <= message.time <= end:
                     overlap = sum(1 for s, e in others if s <= message.time <= e)
@@ -406,7 +413,8 @@ def row(
     prices = costs.table()
     spend = round_spend(root, round_, accounts, coordinator)
     out: dict[str, str] = {c: "" for c in COLUMNS}
-    found = bool(spend.usage)
+    # Review turns alone (an opencode round, transcripts already deleted) do not make a measured round.
+    found = spend.sessions.total() > 0
     out.update(
         id=round_.id,
         kind=round_.kind,
