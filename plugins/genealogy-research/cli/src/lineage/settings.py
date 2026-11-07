@@ -35,6 +35,7 @@ PATHS = {
     "blog": "{research}/blog",
     "question_history": "{research}/question-map.tsv",
     "stories_checked": "{research}/stories-checked.tsv",
+    "stats": "{research}/stats.tsv",
     "person_reports": "{reports}/persons",
     "life_stories": "{reports}/life-stories",
     "books": "{reports}/books",
@@ -84,6 +85,7 @@ class Config:
     rat_fonds: str = ""
     disk: dict[str, float] = field(default_factory=dict)
     accounts: dict[str, dict[str, str]] = field(default_factory=dict)
+    prices: dict[str, float | tuple[float, ...]] = field(default_factory=dict)
 
     def rel(self, key: str) -> Path:
         """The path below the project root, as written in lineage.toml or its default."""
@@ -140,6 +142,27 @@ def _list(raw: dict, key: str, file: Path, kind: type, id_key: str, name_key: st
     return tuple(items)
 
 
+def _prices(raw: dict, file: Path) -> dict[str, float | tuple[float, ...]]:
+    """usd_eur = <rate>; per model "<model id>" = [input, output, cache_read] in USD per million tokens."""
+    prices: dict[str, float | tuple[float, ...]] = {}
+    for key, value in raw.items():
+        if key == "usd_eur":
+            if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
+                raise ConfigError(f"{file}: [prices] usd_eur must be a positive number")
+            prices[key] = float(value)
+        elif (
+            isinstance(value, list)
+            and len(value) == 3
+            and all(isinstance(v, int | float) and not isinstance(v, bool) and v >= 0 for v in value)
+        ):
+            prices[key] = tuple(float(v) for v in value)
+        else:
+            raise ConfigError(
+                f"{file}: [prices] {key} must be [input, output, cache_read] in USD per million tokens"
+            )
+    return prices
+
+
 def parse(text: str, file: Path) -> Config:
     try:
         raw = tomllib.loads(text)
@@ -182,6 +205,7 @@ def parse(text: str, file: Path) -> Config:
         rat_fonds=str(_table(raw, "rat", file).get("fonds", "")),
         disk={k: float(v) for k, v in disk.items()},
         accounts={k: {kk: str(vv) for kk, vv in (v or {}).items()} for k, v in accounts.items()},
+        prices=_prices(_table(raw, "prices", file), file),
     )
 
 
@@ -256,6 +280,11 @@ def dump(c: Config) -> str:
     for table, values in tables.items():
         if values := {k: v for k, v in values.items() if v}:
             lines += ["", f"[{table}]", *(f"{k} = {_toml(v)}" for k, v in values.items())]
+    if c.prices:
+        lines += ["", "[prices]"]
+        for key, value in c.prices.items():
+            rendered = _toml(value) if isinstance(value, float) else f"[{', '.join(f'{v:g}' for v in value)}]"
+            lines.append(f"{_quote(key) if '-' in key else key} = {rendered}")
     for account, values in c.accounts.items():
         lines += ["", f"[accounts.{account}]", *(f"{k} = {_quote(v)}" for k, v in values.items())]
     return "\n".join(lines) + "\n"

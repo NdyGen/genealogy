@@ -10,6 +10,7 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from lineage import metrics
 from lineage.i18n import t
 
 API = "https://api.openarch.nl/1.1/records"
@@ -36,7 +37,9 @@ def _get(endpoint: str, params: dict[str, str | int]) -> dict:
     for attempt in range(3):
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
-                data = json.loads(response.read().decode("utf-8"))
+                body = response.read()
+            metrics.record("openarchieven", urllib.parse.urlsplit(url).netloc, len(body))
+            data = json.loads(body.decode("utf-8"))
             break
         except (OSError, json.JSONDecodeError) as exc:
             if attempt == 2:

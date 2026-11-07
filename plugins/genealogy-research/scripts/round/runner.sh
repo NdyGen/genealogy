@@ -92,10 +92,10 @@ project_init() {
       reports) REPORTS=$line;; data) DATA=$line;; requests) REQUESTS=$line;; replies) REPLIES=$line;;
       forum) FORUM=$line;; forum_notifications) FORUM_NOTIF=$line;; person_reports) PERSON_REPORTS=$line;;
       life_stories) LIFE_STORIES=$line;; stories_checked) STORIES_CHECKED=$line;; output) OUT=$line;;
-      sources) SOURCES=$line;;
+      sources) SOURCES=$line;; stats) STATS=$line;;
     esac
   done <<<"$paths"
-  for key in GEDCOM QUEUE LOG RESEARCH REPORTS DATA REQUESTS REPLIES FORUM FORUM_NOTIF PERSON_REPORTS LIFE_STORIES STORIES_CHECKED OUT SOURCES; do
+  for key in GEDCOM QUEUE LOG RESEARCH REPORTS DATA REQUESTS REPLIES FORUM FORUM_NOTIF PERSON_REPORTS LIFE_STORIES STORIES_CHECKED OUT SOURCES STATS; do
     [ -n "${!key}" ] || die "lineage config gave no path for $key"
   done
   MAIN_BRANCH=$(main_branch)
