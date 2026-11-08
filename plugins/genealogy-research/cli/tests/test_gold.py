@@ -80,6 +80,7 @@ def test_a_wrong_date_an_extra_fact_and_a_wrong_father_count_against(gold_set, t
         ("1 APR 1738", "BET 1737 AND 1738", gold.RIGHT),
         ("1 APR 1739", "BET 1737 AND 1738", gold.WRONG),
         ("ABT 1738", "BET 1737 AND 1738", gold.VAGUE),
+        ("BEF 29 AUG 1659", "BEF 29 AUG 1659", gold.RIGHT),
         ("20 JAN 1788", "BEF 21 JAN 1788", gold.RIGHT),
     ],
 )

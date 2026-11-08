@@ -182,6 +182,8 @@ def date_verdict(found: str, expected: str) -> str:
         return RIGHT
     if not found:
         return VAGUE
+    if " ".join(found.upper().split()) == " ".join(expected.upper().split()):
+        return RIGHT
     gold = verify._plain(expected)
     if gold is None:
         # A gold range ("BET 1737 AND 1738"): a date in it is right, a range is vague.
