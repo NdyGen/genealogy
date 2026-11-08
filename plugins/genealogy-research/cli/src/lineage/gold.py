@@ -226,7 +226,11 @@ def _describe(date: str, place: str) -> str:
 
 
 def _parent_matches(person: Person | None, gold: GoldParent) -> bool:
-    if person is None or verify.name_score(person, gold.name) < 2:
+    if person is None:
+        return False
+    # Without a surname (a patronymic in the given names) name_score cannot reach 2.
+    whole = "".join(verify._tokens(person.name)), "".join(verify._tokens(gold.name))
+    if verify.name_score(person, gold.name) < 2 and not (not person.surname and verify._similar(*whole)):
         return False
     born = person.birth_date.year if person.birth_date else None
     return gold.born is None or born is None or abs(born - gold.born) <= 2
