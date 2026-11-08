@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 from pathlib import Path
 
-from lineage import archive, web
+from lineage import archive, web, yearwords
 from lineage.checks import normalize
 from lineage.dates import parse_date
 from lineage.gedcom import EVENT_LABELS, Node, Person, Tree, parse, parse_nodes
@@ -111,11 +111,15 @@ class Check:
     details: list[str] = field(default_factory=list)
 
 
+LINKS = ("independent", "single", "weak", "none")
+
+
 @dataclass
 class Result:
     checks: list[Check] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    links: collections.Counter = field(default_factory=collections.Counter)
 
     def counts(self) -> dict[str, int]:
         found = collections.Counter(c.outcome for c in self.checks)
@@ -123,11 +127,19 @@ class Result:
 
     def summary(self) -> str:
         counts = self.counts()
-        return t(
+        line = t(
             "verify: {total} citations: {supported} supported, {partial} partly, {contradicted} contradicted, "
             "{unresolvable} unresolvable, {unchecked} not comparable, {unreread} scans without reread marker",
             total=len(self.checks), **counts,
         )  # fmt: skip
+        if self.links:
+            line += t(
+                "; new parent links: {independent} on independent records, {single} on one record only "
+                "(child known only from it), {weak} on one record while others do not confirm, "
+                "{none} without an index record naming child and parent",
+                **{k: self.links[k] for k in LINKS},
+            )  # fmt: skip
+        return line
 
     def text(self) -> str:
         lines = [f"ERROR: {m}" for m in self.errors] + [f"WARNING: {m}" for m in self.warnings]
@@ -487,11 +499,130 @@ def verify(old: str, new: str, offline: bool = False, everything: bool = False) 
     """Check the facts `new` adds or changes against `old` (every fact with `everything`)."""
     tree = parse(new)
     result = Result()
+    by_owner: dict[str, list[Fact]] = collections.defaultdict(list)
+    for fact in facts(new):
+        by_owner[fact.owner].append(fact)
     for fact in facts(new) if everything else changed_facts(old, new):
         checks = [check_citation(fact, c, tree, offline) for c in fact.citations]
         result.checks += checks
         _judge(fact, checks, result)
+    for link in parent_links(new, None if everything else old):
+        if not any(c.quay == "1" for c in link.citations):
+            _judge_link(link, by_owner[link.owner], tree, offline, result)
     return result
+
+
+def parent_links(new: str, old: str | None) -> list[Fact]:
+    """FAMC links of `new`, cited or not, that `old` does not have (all of them without `old`). Most links in
+    a tree carry no citation of their own: the baptism cited at the birth is their evidence."""
+    def links(text: str) -> dict[tuple[str, str], Node]:
+        return {
+            (record.xref, child.value.strip("@ ")): child
+            for record in parse_nodes(text, [])
+            if record.tag == "INDI" and record.xref
+            for child in record.all("FAMC")
+        }
+
+    before = links(old) if old else {}
+    return [Fact(owner, "FAMC", node, _citations(node)) for (owner, fam), node in links(new).items()
+            if (owner, fam) not in before]  # fmt: skip
+
+
+def _records(cited: list[Fact], offline: bool) -> list[archive.Record]:
+    refs = dict.fromkeys(ref for f in cited for c in f.citations if (ref := reference(c))[0] == "oa")
+    found = []
+    for _, ref in refs:
+        try:
+            found.append(archive.show(ref, offline=offline))
+        except archive.ArchiveError:
+            continue
+    return found
+
+
+def link_support(fact: Fact, cited: list[Fact], tree: Tree, offline: bool = False) -> tuple[int, int, bool]:
+    """(records naming child and parent, other records naming the child, whether one of those confirms the
+    child's age, birth date or birthplace). Two copies of one baptism (two archives indexing the same
+    register) count once."""
+    child = tree.persons.get(fact.owner)
+    family = tree.families.get(fact.node.value.strip("@ "))
+    if not child or not family:
+        return 0, 0, False
+    parents = [tree.persons[p] for p in family.partners if p in tree.persons]
+    linking: dict[tuple, archive.Record] = {}
+    others: list[tuple[archive.Record, archive.RecordPerson]] = []
+    for record in _records(cited, offline):
+        _, found = _find(child, record, tree)
+        if not found:
+            continue
+        roles = {p.role for p in record.persons if _PARENT_ROLES.match(p.role)}
+        if any(_best(parent, record, roles)[1] for parent in parents):
+            linking[(record.event, record.date_parts)] = record
+        else:
+            others.append((record, found))
+    born = _birth(child, list(linking.values()))
+    return len(linking), len(others), any(_confirms(born, r, p) for r, p in others)
+
+
+def _birth(child: Person, linking: list[archive.Record]) -> tuple[str, str]:
+    """(GEDCOM date, place) of the child's birth: from the tree, else from the baptism that names the parents."""
+    if (birth := child.event("BIRT", "CHR", "BAPM")) and birth.date:
+        return birth.date.raw, birth.place
+    for record in linking:
+        if record.event in ("Doop", "Geboorte") and record.date_parts[2]:
+            return " ".join(str(p) for p in record.date_parts[2:]), record.place
+    return "", ""
+
+
+def _confirms(born: tuple[str, str], record: archive.Record, found: archive.RecordPerson) -> bool:
+    raw, place = born
+    if not raw:
+        return False
+    if found.birth_date[2] and compare_date(raw, found.birth_date):
+        return True
+    if found.birth_place and compare_place(place, found.birth_place):
+        return True
+    if found.age.isdigit() and record.date_parts[2]:
+        born = record.date_parts[2] - int(found.age)
+        return bool(compare_date(raw, (None, None, born)) or compare_date(raw, (None, None, born - 1)))
+    return False
+
+
+def _judge_link(fact: Fact, cited: list[Fact], tree: Tree, offline: bool, result: Result) -> None:
+    """A proven parent link needs two independent records: two that name child and parents, or one that does
+    and another record of the child that agrees on age, birth date or birthplace. One record and nothing else
+    about the child is a child known only from the baptism: nothing to identify. No Open Archieven record
+    naming child and parent ("none") may still rest on a scan; part one of verify judges those citations."""
+    linking, others, confirmed = link_support(fact, [fact, *cited], tree, offline)
+    if not linking:
+        result.links["none"] += 1
+    elif linking >= 2 or confirmed:
+        result.links["independent"] += 1
+    elif not others:
+        result.links["single"] += 1
+    else:
+        result.links["weak"] += 1
+        result.errors.append(t(
+            "{fact}: link on one record naming the parents; the other records of the child do not "
+            "confirm age, birth date or birthplace: QUAY 1 with a NOTE, or cite a second record",
+            fact=fact.label,
+        ))  # fmt: skip
+
+
+_YEAR_READING = re.compile(r"[\"“„]([^\"“”„\n]{4,80})[\"”]\s*=\s*(\d{3,4})\b")
+
+
+def year_readings(texts: dict[str, str]) -> list[str]:
+    """Year words with a conversion, as the scan reader writes them ("1700 Zeeven entagtig" = 1787), where
+    the words give another year than the conversion."""
+    found = []
+    for where, text in texts.items():
+        for m in _YEAR_READING.finditer(text):
+            value = yearwords.parse(m[1])
+            if value and value != int(m[2]):
+                found.append(t(
+                    "{where}: \"{words}\" is {value}, not {year}", where=where, words=m[1], value=value, year=m[2],
+                ))  # fmt: skip
+    return found
 
 
 def _judge(fact: Fact, checks: list[Check], result: Result) -> None:

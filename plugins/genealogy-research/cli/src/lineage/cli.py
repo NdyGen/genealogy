@@ -536,6 +536,19 @@ def cmd_review(args: argparse.Namespace) -> int:
     return 1 if outcome.errors else 0
 
 
+def _readings(root: Path, pid: str, tip: str) -> dict[str, str]:
+    """The helpers' result files in the round's worktree and the report at the tip, where readings stand."""
+    project = _project()
+    helpers = root / ".worktrees" / f"dr-{pid}" / project.rel("output") / "helpers"
+    texts = {
+        p.name: p.read_text(encoding="utf-8", errors="replace")
+        for p in sorted(helpers.glob("*.md"))
+        if not p.name.endswith(".brief.md")
+    }
+    texts[t("report")] = roundstats.file_at(root, tip, project.rel("person_reports") / f"{pid}.md")
+    return texts
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
     project = _project()
     if args.all:
@@ -550,6 +563,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
             return 2
         old, new = roundstats.gedcom_text(root, base), roundstats.gedcom_text(root, tip)
         result = verify.verify(old, new, offline=args.cached_only)
+        result.warnings += verify.year_readings(_readings(root, args.id.strip("@").upper(), tip))
     else:
         print(t("give a round ID or --all"), file=sys.stderr)
         return 2

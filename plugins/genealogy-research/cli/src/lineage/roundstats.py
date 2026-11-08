@@ -33,7 +33,7 @@ COLUMNS = [
     "citations_added", "queue_added",
     "oa_requests", "rat_requests", "web_requests", "browser_pages", "download_mb", "scans", "scan_mb",
     "htr_credits", "century", "region",
-    *(f"verify_{o}" for o in verify.OUTCOMES), "verify_errors",
+    *(f"verify_{o}" for o in verify.OUTCOMES), "verify_errors", *(f"verify_links_{k}" for k in verify.LINKS),
 ]  # fmt: skip
 VERIFY_COLUMNS = [c for c in COLUMNS if c.startswith("verify_")]
 SCAN_TYPES = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp", ".pdf"}
@@ -354,8 +354,12 @@ def _queue_ids(text: str | None) -> set[str]:
     return {line.split("\t", 1)[0] for line in text.splitlines()[1:] if line.strip()}
 
 
+def file_at(root: Path, commit: str, rel: Path) -> str:
+    return _show(root, commit, rel) or ""
+
+
 def gedcom_text(root: Path, commit: str) -> str:
-    return _show(root, commit, settings.current().rel("gedcom")) or ""
+    return file_at(root, commit, settings.current().rel("gedcom"))
 
 
 def verification(root: Path, base: str, tip: str) -> verify.Result:
@@ -506,6 +510,7 @@ def row(root: Path, round_: Round, spend: Spend, verified: verify.Result | None 
     if verified is not None:
         out.update({f"verify_{k}": str(v) for k, v in verified.counts().items()})
         out["verify_errors"] = str(len(verified.errors))
+        out.update({f"verify_links_{k}": str(verified.links[k]) for k in verify.LINKS})
     return out
 
 
@@ -732,5 +737,10 @@ def describe(r: dict[str, str]) -> str:
             "{unresolvable} unresolvable, {unchecked} not comparable, {unreread} scans without reread marker; "
             "{errors} errors",
             errors=r["verify_errors"], **{o: r[f"verify_{o}"] or "0" for o in verify.OUTCOMES},
+        ))  # fmt: skip
+        lines.append(t(
+            "new parent links: {independent} independent, {single} on one record only, {weak} weak, "
+            "{none} without an index record",
+            **{k: r[f"verify_links_{k}"] or "0" for k in verify.LINKS},
         ))  # fmt: skip
     return "\n".join(lines)

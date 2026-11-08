@@ -146,6 +146,14 @@ merge base, resolves each citation's `PAGE` and compares the record with the fac
 - **Delpher**: surname, given name and year in the OCR text; never a contradiction.
 - **Scans**: no comparison, but the citation or the fact's NOTE needs the marker `reread by lead`
   (`nagelezen door leider`).
+- **Parent links**: for a new or changed FAMC with a QUAY 3 citation, the Open Archieven records cited
+  anywhere at the child are sorted into records naming the child and a parent (one per event and date, so
+  two indexes of one baptism count once) and other records naming the child. Independent: two such
+  records, or one and another record whose age, birth date or birthplace fits the child's birth (from the
+  tree, else from that baptism). Single: one record and nothing else about the child. Weak (ERROR): one
+  record while other records of the child confirm nothing. Name, patronymic and place are not a feature.
+- **Years in words**: `"<words>" = <year>` in the helpers' result files (`<output>/helpers/`) and the
+  report is recomputed (`yearwords.py`: early modern Dutch and Latin); another year is a WARNING.
 - **Severity**: a fact is proven when a citation has QUAY 3. ERROR: a QUAY 3 citation contradicted, or no
   QUAY 3 citation that resolves. WARNING: partly supported, a contradiction on a lower QUAY, a scan
   without the marker. Exit status 1 on an ERROR only with `--strict` or `[verify] strict = true`; until

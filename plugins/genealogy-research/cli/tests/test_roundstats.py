@@ -363,6 +363,9 @@ def test_metrics_only_inside_a_round_worktree(tmp_path, monkeypatch):
 def test_describe_shows_verification():
     r = {c: "" for c in roundstats.COLUMNS}
     r.update(id="I9", kind="normal", verify_errors="1", verify_supported="4", verify_contradicted="1")
-    assert set(roundstats.VERIFY_COLUMNS) == {f"verify_{o}" for o in verify.OUTCOMES} | {"verify_errors"}
+    r.update(verify_links_weak="2", verify_links_none="3")
+    assert set(roundstats.VERIFY_COLUMNS) == (
+        {f"verify_{o}" for o in verify.OUTCOMES} | {"verify_errors"} | {f"verify_links_{k}" for k in verify.LINKS}
+    )
     text = roundstats.describe(r)
-    assert "4 supported" in text and "1 contradicted" in text and "1 errors" in text
+    assert "4 supported" in text and "1 contradicted" in text and "1 errors" in text and "2 weak" in text and "3 without" in text

@@ -18,7 +18,7 @@ Language: transcribe literally in the source's own language, spelling and abbrev
 ## Rules
 
 - **Mark uncertainty.** Unreadable: `[?]`. Uncertain reading: `Jan[?]` or `Jan / Jean[?]`. Never guess silently.
-- **Years written in words, literally.** Copy "1700 Zeeven entagtig" as it stands and put your conversion apart (1787): "1700 zeven en tachtig" is 1787, not 1777.
+- **Years written in words, literally.** Copy "1700 Zeeven entagtig" as it stands and put your conversion apart (1787): "1700 zeven en tachtig" is 1787, not 1777. Give every year (or sum) in words also on its own line in the result, in exactly this form, words in double quotes: `- year in words: "1700 Zeeven entagtig" = 1787`. `lineage verify` recomputes the words and flags a conversion that does not match.
 - If reading fails (too small, too dark, wrong page), say so and say what you do see. Try a crop or a higher resolution if the source offers it.
 - Transkribus (`lineage htr`) only when the brief allows it and within the maximum stated there, on a crop of the deciding lines (sources reference of the deep-research skill, section on handwriting recognition). Mark a Transkribus reading as machine reading and state how many recognitions you ran.
 - Do not interpret: no conclusions about who someone is or how it fits in the tree. For persons use only `lineage person <ID>` if you need to know who is meant; do not open the GEDCOM directly.
@@ -35,6 +35,8 @@ Language: transcribe literally in the source's own language, spelling and abbrev
 <literal transcription>
 
 - legibility: <good / parts uncertain / poor>, <which words>
+- year in words: "<words as written>" = <year>   (one line per year in words; leave out when there is none)
+- confidence: <high / medium / low> for the reading the brief asks about, and why
 - also on this scan: <other records or names that may matter for the brief>
 ```
 
