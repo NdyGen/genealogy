@@ -1,0 +1,102 @@
+0 HEAD
+1 GEDC
+2 VERS 5.5.1
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME John /Miller/
+1 SEX M
+1 BIRT
+2 DATE 1790
+2 PLAC Northfield
+1 DEAT
+2 DATE 1860
+2 PLAC Northfield
+1 FAMS @F1@
+0 @I5@ INDI
+1 NAME Ann /Taylor/
+1 SEX F
+1 BIRT
+2 DATE 1795
+1 DEAT
+2 DATE 1871
+1 FAMS @F1@
+0 @I2@ INDI
+1 NAME William /Miller/
+1 SEX M
+1 BIRT
+2 DATE 3 MAR 1820
+2 PLAC Northfield
+2 SOUR @S1@
+3 PAGE Baptisms Northfield 1820, no. 31; https://www.openarchieven.nl/xyz:00000000-0000-0000-0000-000000000031
+3 QUAY 3
+1 CHR
+2 DATE 4 MAR 1820
+2 PLAC Northfield
+2 SOUR @S1@
+3 PAGE Baptisms Northfield 1820, no. 31; https://www.openarchieven.nl/xyz:00000000-0000-0000-0000-000000000031
+3 QUAY 3
+1 DEAT
+2 DATE 12 NOV 1888
+2 PLAC Eastbrook
+2 SOUR @S1@
+3 PAGE Deaths Eastbrook 1888, no. 112; https://www.openarchieven.nl/xyz:00000000-0000-0000-0000-000000000112
+3 QUAY 3
+1 FAMC @F1@
+1 FAMS @F2@
+0 @I3@ INDI
+1 NAME Mary /Brown/
+1 SEX F
+1 BIRT
+2 DATE ABT 1825
+2 PLAC Eastbrook
+1 DEAT
+2 DATE 1899
+1 FAMS @F2@
+0 @I4@ INDI
+1 NAME Henry /Miller/
+1 SEX M
+1 BIRT
+2 DATE 1 JUN 1850
+2 PLAC Northfield
+2 SOUR @S1@
+3 PAGE Births Northfield 1850, no. 77; https://www.openarchieven.nl/xyz:00000000-0000-0000-0000-000000000077
+3 QUAY 3
+1 DEAT
+2 DATE BEF 1930
+1 FAMC @F2@
+1 FAMS @F3@
+0 @I6@ INDI
+1 NAME George /Miller/
+1 SEX M
+1 BIRT
+2 DATE 1890
+1 DEAT
+2 DATE 1960
+1 FAMC @F3@
+1 FAMS @F4@
+0 @I7@ INDI
+1 NAME James /Miller/
+1 SEX M
+1 BIRT
+2 DATE 1950
+1 FAMC @F4@
+0 @F1@ FAM
+1 HUSB @I1@
+1 WIFE @I5@
+1 CHIL @I2@
+0 @F2@ FAM
+1 HUSB @I2@
+1 WIFE @I3@
+1 MARR
+2 DATE 10 MAY 1848
+2 PLAC Eastbrook
+1 CHIL @I4@
+0 @F3@ FAM
+1 HUSB @I4@
+1 CHIL @I6@
+0 @F4@ FAM
+1 HUSB @I6@
+1 CHIL @I7@
+0 @S1@ SOUR
+1 TITL Fictional registers of Northfield and Eastbrook
+0 TRLR

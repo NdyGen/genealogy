@@ -20,6 +20,7 @@ from lineage import (
     doctor,
     edit,
     forum,
+    gold,
     gramps,
     gramps_tree,
     graph,
@@ -578,6 +579,24 @@ def cmd_verify(args: argparse.Namespace) -> int:
         args.tsv.write_text(verify.tsv(result), encoding="utf-8")
     print(result.text())
     return 1 if result.errors and (args.strict or project.verify_strict) else 0
+
+
+def cmd_gold(args: argparse.Namespace) -> int:
+    gold_set = gold.load(args.gold)
+    source = args.tree or _project().path("gedcom")
+    text = source.read_bytes().decode("utf-8", "surrogateescape")
+    if args.gold_command == "exam":
+        args.out.write_bytes(gold.exam(text, gold_set).encode("utf-8", "surrogateescape"))
+        print(t("exam written: {path} ({n} persons without their gold facts)", path=args.out, n=len(gold_set)))
+        return 0
+    transcripts = [f for x in args.transcripts for f in (sorted(x.rglob("*.jsonl")) if x.is_dir() else [x])]
+    result = gold.score(text, gold_set, transcripts)
+    print(result.json() if args.json else result.text())
+    below = [
+        value for value in (result.precision(), result.recall(), result.precision(True), result.recall(True))
+        if value is not None and value < args.minimum
+    ]  # fmt: skip
+    return 1 if below or result.living else 0
 
 
 def cmd_stats(args: argparse.Namespace) -> int:
@@ -1331,6 +1350,28 @@ def build_parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("--strict", action="store_true", help="exit 1 on errors ([verify] strict does the same)")
     verify_parser.add_argument("--tsv", type=Path, help="write every citation and its outcome to this file")
     verify_parser.set_defaults(offline=cmd_verify)
+
+    gold_parser = commands.add_parser(
+        "gold", help="gold-standard evaluation: strip checked facts from a tree, score a round's tree against them"
+    )
+    gold_commands = gold_parser.add_subparsers(dest="gold_command", required=True)
+    gold_exam = gold_commands.add_parser("exam", help="the tree without the gold persons' facts and parent links")
+    gold_exam.add_argument("gold", type=Path, help="the gold set (TOML)")
+    gold_exam.add_argument("--tree", type=Path, help="GEDCOM to start from (default: the project's)")
+    gold_exam.add_argument("--out", type=Path, required=True, help="where to write the exam GEDCOM")
+    gold_score = gold_commands.add_parser(
+        "score", help="precision and recall of facts and parent links, QUAY calibration, living-person lookups"
+    )
+    gold_score.add_argument("gold", type=Path, help="the gold set (TOML)")
+    gold_score.add_argument("--tree", type=Path, help="the round's GEDCOM (default: the project's)")
+    gold_score.add_argument(
+        "--transcripts", type=Path, nargs="*", default=[], help="session logs (.jsonl or folders) of the round"
+    )  # fmt: skip
+    gold_score.add_argument(
+        "--minimum", type=float, default=0.0, help="exit 1 when a precision or recall is below this (0-1)"
+    )  # fmt: skip
+    gold_score.add_argument("--json", action="store_true", help="machine-readable output")
+    gold_parser.set_defaults(offline=cmd_gold)
 
     stats_parser = commands.add_parser(
         "stats", help="cost and yield per research round (the stats file); without a command: the summary"

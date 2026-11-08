@@ -1,0 +1,29 @@
+# Fictional gold set: the format of a project's gold set, and the fixture of the tests. A real gold set
+# lists 10 to 20 persons whose facts and parents were checked against scans.
+
+[[person]]
+id = "I2"
+tags = ["BIRT", "CHR", "DEAT"]
+note = "baptism names both parents; death record gives age 68"
+facts = [
+  { tag = "BIRT", date = "3 MAR 1820", place = "Northfield", source = "Baptisms Northfield 1820, no. 31" },
+  { tag = "CHR", date = "4 MAR 1820", place = "Northfield", source = "Baptisms Northfield 1820, no. 31" },
+  { tag = "DEAT", date = "12 NOV 1888", place = "Eastbrook", source = "Deaths Eastbrook 1888, no. 112" },
+]
+parents = [
+  { role = "father", name = "John Miller", born = 1790 },
+  { role = "mother", name = "Ann Taylor", born = 1795 },
+]
+
+[[person]]
+id = "I4"
+tags = ["BIRT", "DEAT"]
+note = "the tree only has a death range; the death record was found on a scan"
+facts = [
+  { tag = "BIRT", date = "1 JUN 1850", place = "Northfield", source = "Births Northfield 1850, no. 77" },
+  { tag = "DEAT", date = "14 FEB 1921", place = "Northfield", source = "Deaths Northfield 1921, no. 9" },
+]
+parents = [
+  { role = "father", name = "William Miller", born = 1820 },
+  { role = "mother", name = "Mary Brown", born = 1825 },
+]
