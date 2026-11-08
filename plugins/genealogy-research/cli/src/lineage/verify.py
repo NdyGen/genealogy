@@ -37,7 +37,11 @@ _SCAN = re.compile(
 )
 # The form leads already write for RAT protocols: "RAT <fonds> (<name>) inv. <n> p. <n> (scans <n>-<n>)".
 _RAT = re.compile(r"\bRAT (\d+)\b.*?\binv\. (\w+).*?\bscans? (\d+)", re.I)
-_REREAD = re.compile(r"reread by (?:the )?lead|(?:na|her)gelezen door (?:de )?leider", re.I)
+# An archive citation whose fonds stands in the source record: "inv. 145, fol. 12r, scans 0255-0256".
+_SCAN_NUMBER = re.compile(r"\bscans?\s+(\d[\w-]*)", re.I)
+_INVENTORY = re.compile(r"\binv\.\s*(\w+)", re.I)
+# "zelf gelezen" and "eigen lezing" are how leads marked their own reading before the fixed marker.
+_REREAD = re.compile(r"reread by (?:the )?lead|(?:na|her)gelezen door (?:de )?leider|zelf gelezen|eigen lezing", re.I)
 _URL = re.compile(r"https?://\S+")
 _MONTHS = ("JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC")
 _PLAIN_DATE = re.compile(rf"^(?:(\d{{1,2}}) )?(?:({'|'.join(_MONTHS)}) )?(\d{{3,4}})$")
@@ -192,6 +196,9 @@ def reference(citation: Citation) -> tuple[str, str]:
         return "scan", f"rat:{m[1]}-{m[2]}/{m[3]}"
     if m := _SCAN.search(citation.text):
         return "scan", m[0]
+    if (m := _SCAN_NUMBER.search(citation.page)) and not _URL.search(citation.page):
+        inventory = _INVENTORY.search(citation.page)
+        return "scan", f"{citation.source}:{inventory[1] if inventory else ''}/{m[1]}"
     if m := _URL.search(citation.page):
         return "url", m[0].rstrip(".,;)")
     return "", ""
