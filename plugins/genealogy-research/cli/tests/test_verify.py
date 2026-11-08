@@ -131,6 +131,14 @@ def test_a_son_named_after_his_father_is_no_contradiction(records):
     assert result.counts()[verify.CONTRADICTED] == 0 and not result.errors
 
 
+def test_an_alternative_name_is_compared_as_written(records):
+    records[REF] = _record("Trouwen", (4, 7, 1750), "Eersel", ("Bruid", "Johanna Elisabeth Herkeman"))
+    new = ged(_person("I1", "Johanna Elisabeth /Sterkman/", "1 NAME Johanna Elisabeth /Herkeman/", "2 TYPE aka",
+                      _cite()))  # fmt: skip
+    result = verify.verify("", new)
+    assert result.counts()[verify.SUPPORTED] == 1 and not result.warnings
+
+
 def test_birth_bounded_by_baptism(records):
     records[REF] = _record("Doop", (14, 3, 1731), "Breda", ("Kind", "Maria Wouters"), ("Vader", "Peter Wouters"))
     result = verify.verify("", ged(_person("I1", "Maria /Wouters/", "1 BIRT", "2 DATE BEF 15 MAR 1731", _cite())))

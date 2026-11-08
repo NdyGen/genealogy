@@ -8,6 +8,7 @@ counts as proven: a contradiction there, or no QUAY 3 citation that resolves, is
 from __future__ import annotations
 
 import collections
+import dataclasses
 import datetime as dt
 import hashlib
 import re
@@ -359,6 +360,10 @@ def compare_record(fact: Fact, record: archive.Record, tree: Tree) -> _Compariso
     if fact.tag == "FAMC":
         return _compare_link(fact, record, tree, c)
     persons = _fact_persons(fact, tree)
+    if fact.tag == "NAME" and persons:
+        # An alternative NAME (aka) is compared as written, not the person's first name.
+        given, _, rest = fact.node.value.partition("/")
+        persons = [dataclasses.replace(persons[0], given=given.strip(), surname=rest.split("/")[0].strip())]
     date_raw = fact.node.value_of("DATE")
     place = fact.node.value_of("PLAC")
     principal_roles = _PRINCIPAL.get(record.event, set())
