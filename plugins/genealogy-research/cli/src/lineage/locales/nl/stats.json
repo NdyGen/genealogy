@@ -36,5 +36,7 @@
   "review": "review",
   "{account}: no complete week ending in a weekly-limit hit; nothing to calibrate": "{account}: geen volledige week die eindigt op de weeklimiet; niets te kalibreren",
   " (incomplete: the week began before the oldest transcript; not counted)": " (onvolledig: de week begon vóór het oudste transcript; telt niet mee)",
-  "cost {id}: EUR {api} at API prices (review EUR {review}), subscription EUR {sub}; {minutes} min active; {facts} facts, EUR {per_fact} per fact": "kosten {id}: EUR {api} tegen API-prijzen (review EUR {review}), abonnement EUR {sub}; {minutes} min actief; {facts} feiten, EUR {per_fact} per feit"
+  "cost {id}: EUR {api} at API prices (review EUR {review}), subscription EUR {sub}; {minutes} min active; {facts} facts, EUR {per_fact} per fact": "kosten {id}: EUR {api} tegen API-prijzen (review EUR {review}), abonnement EUR {sub}; {minutes} min actief; {facts} feiten, EUR {per_fact} per feit",
+  "median review min": "mediaan review min",
+  "review: {active} min active, {wait} min from the round's end to the merge": "review: {active} min actief, {wait} min van het einde van de ronde tot de merge"
 }

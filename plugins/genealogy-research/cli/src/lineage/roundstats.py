@@ -25,7 +25,8 @@ from lineage.transcripts import Session, Usage
 
 ROLES = ("leader", "helpers", "review")
 COLUMNS = [
-    "id", "kind", "runtime", "start", "merged", "active_min", "leader_sessions", "helper_sessions",
+    "id", "kind", "runtime", "start", "merged", "active_min", "review_min", "review_wait_min",
+    "leader_sessions", "helper_sessions",
     "limit_hits", "tool_calls",
     *(f"{role}_{kind}" for role in ROLES for kind in ("in", "out", "cache_read", "cache_write")),
     "models", "accounts", "api_eur_leader", "api_eur_helpers", "api_eur_review", "api_eur", "sub_eur",
@@ -162,6 +163,8 @@ class Spend:
     active: dt.timedelta = dt.timedelta()
     # The last turn of the round's own sessions: where the coordinator's review can begin.
     last: dt.datetime | None = None
+    # The coordinator's active time in the review windows; None when no window was found.
+    review_active: dt.timedelta | None = None
 
     def add(self, role: str, model: str, account: str, usage: Usage, weight: float = 1.0) -> None:
         self.usage.setdefault((role, model, account), Usage()).add(usage, weight)
@@ -244,6 +247,8 @@ class Coordinator:
         for account, family, tip, start, end in self.windows:
             if tip != round_.tip:
                 continue
+            active = transcripts.active_time([s.times for s in family], start, end)
+            into.review_active = (into.review_active or dt.timedelta()) + active
             others = [(s, e) for _, fam, _, s, e in self.windows if fam[0] is family[0]]
             for message in (m for s in family for m in s.messages.values()):
                 if start <= message.time <= end:
@@ -446,6 +451,10 @@ def _mb(size: int) -> str:
     return f"{size / 1_000_000:.1f}"
 
 
+def _minutes(span: dt.timedelta | None) -> str:
+    return str(round(span.total_seconds() / 60)) if span is not None else ""
+
+
 def row(root: Path, round_: Round, spend: Spend, verified: verify.Result | None = None) -> dict[str, str]:
     prices = costs.table()
     out: dict[str, str] = {c: "" for c in COLUMNS}
@@ -478,6 +487,8 @@ def row(root: Path, round_: Round, spend: Spend, verified: verify.Result | None 
         subscription = [costs.subscription_eur(a, e) for a, e in eur_account.items()]
         out.update(
             active_min=str(round(spend.active.total_seconds() / 60)),
+            review_min=_minutes(spend.review_active),
+            review_wait_min=_minutes(round_.merged - spend.last if round_.merged and spend.last else None),
             leader_sessions=str(spend.sessions["leader"]),
             helper_sessions=str(spend.sessions["helpers"]),
             limit_hits=str(spend.limit_hits),
@@ -642,6 +653,7 @@ def summary(rows: list[dict[str, str]]) -> str:
                 t("median subscr. EUR"),
                 t("EUR/fact"),
                 t("median active min"),
+                t("median review min"),
             ]
         ),
     ]
@@ -670,6 +682,7 @@ def summary(rows: list[dict[str, str]]) -> str:
                         _median(g.values("sub_eur")),
                         f"{fact:.2f}" if fact is not None else "-",
                         _median(g.values("active_min")),
+                        _median(g.values("review_min")),
                     ]
                 )  # fmt: skip
             )
@@ -719,6 +732,8 @@ def describe(r: dict[str, str]) -> str:
         t("active {minutes} min; sessions: {leader} leader, {helpers} helpers; {hits} limit hits; {tools} tool calls",
           minutes=r["active_min"] or "-", leader=r["leader_sessions"] or "-", helpers=r["helper_sessions"] or "-",
           hits=r["limit_hits"] or "-", tools=r["tool_calls"] or "-"),
+        t("review: {active} min active, {wait} min from the round's end to the merge",
+          active=r["review_min"] or "-", wait=r["review_wait_min"] or "-"),
         t("archives: {oa} Open Archieven, {rat} RAT, {web} web, {browser} browser pages, {mb} MB; "
           "{scans} scans ({scan_mb} MB); {htr} Transkribus credits",
           oa=r["oa_requests"] or "-", rat=r["rat_requests"] or "-", web=r["web_requests"] or "-",
