@@ -70,3 +70,9 @@ def test_other_prefix_is_left_out_of_the_title_but_keeps_the_id(offline):
     assert "1 TITL Rechterlijke archieven Veldhoek" in record.gedcom_source()
     plain = dataclasses.replace(record, source_type="Rechterlijke archieven")
     assert record.source_xref != plain.source_xref
+
+
+def test_places_and_professions_given_as_lists():
+    assert archive._place({"Place": ["Dongen", "Breda"]}) == "Dongen, Breda"
+    assert archive._place([{"Place": "Dongen"}, "Breda"]) == "Dongen, Breda"
+    assert archive._text(["smid", "herbergier"]) == "smid, herbergier"

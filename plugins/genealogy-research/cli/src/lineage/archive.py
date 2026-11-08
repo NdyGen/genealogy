@@ -143,7 +143,16 @@ def _as_list(value) -> list:
 
 
 def _place(value) -> str:
-    return value.get("Place", "") if isinstance(value, dict) else str(value or "")
+    """A place; a person with several residences comes as a list, of strings or of dicts."""
+    if isinstance(value, list):
+        return ", ".join(p for p in (_place(v) for v in value) if p)
+    return _place(value.get("Place", "")) if isinstance(value, dict) else str(value or "")
+
+
+def _text(value) -> str:
+    if isinstance(value, list):
+        return ", ".join(p for p in (_text(v) for v in value) if p)
+    return str(value or "")
 
 
 def _name(person: dict) -> str:
@@ -307,7 +316,7 @@ def show(ref: str, offline: bool = False) -> Record:
                 age=_age(person),
                 birth=birth,
                 residence=_place(person.get("Residence")),
-                profession=str(person.get("Profession") or ""),
+                profession=_text(person.get("Profession")),
                 birth_date=_date_parts(person.get("BirthDate")),
                 birth_place=_place(person.get("BirthPlace")),
             )
