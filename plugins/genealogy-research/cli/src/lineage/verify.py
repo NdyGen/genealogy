@@ -50,7 +50,9 @@ _GIVEN_FORMS = {
     "willem": "wilhelmus", "guilielmus": "wilhelmus", "gulielmus": "wilhelmus",
     "adriaan": "adrianus", "ariaan": "adrianus", "arie": "adrianus",
     "jacob": "jacobus", "jacques": "jacobus", "cornelis": "cornelius", "kees": "cornelius",
-    "anna": "anna", "anneke": "anna", "maria": "maria", "marie": "maria", "mie": "maria",
+    "anna": "anna", "anneke": "anna", "maria": "maria", "marie": "maria", "mie": "maria", "maeijken": "maria",
+    "maaike": "maria", "mayken": "maria", "maijken": "maria", "jenneken": "johanna",
+    "theuntje": "antonia", "teuntje": "antonia", "toontje": "antonia", "dingena": "dimpna", "dina": "dimpna",
     "catharina": "catharina", "catrina": "catharina", "trijntje": "catharina",
     "elisabeth": "elisabeth", "lijsbeth": "elisabeth", "isabella": "elisabeth",
     "johanna": "johanna", "jenneke": "johanna", "jantje": "johanna",
@@ -255,6 +257,12 @@ def _find(person: Person, record: archive.Record, tree: Tree) -> tuple[int, arch
     return 0, None
 
 
+def _years(age: str) -> int | None:
+    """An age in whole years: "75", "75 jaar"; None for "3 maanden" or nothing."""
+    m = re.match(r"\s*(\d{1,3})\s*(?:j|jaar|jaren|years?)?\.?\s*$", age or "", re.I)
+    return int(m[1]) if m else None
+
+
 def _plain(raw: str) -> tuple[int | None, int | None, int] | None:
     if m := _PLAIN_DATE.match(raw.strip().upper()):
         return (int(m[1]) if m[1] else None, _MONTHS.index(m[2]) + 1 if m[2] else None, int(m[3]))
@@ -394,8 +402,8 @@ def compare_record(fact: Fact, record: archive.Record, tree: Tree) -> _Compariso
                                   fact=date_raw, record=_date_text(found.birth_date)))
             else:
                 c.agree.append("birth")
-        elif fact.tag == "BIRT" and found.age.isdigit() and record.date_parts[2]:
-            born = record.date_parts[2] - int(found.age)
+        elif fact.tag == "BIRT" and _years(found.age) is not None and record.date_parts[2]:
+            born = record.date_parts[2] - _years(found.age)
             if compare_date(date_raw, (None, None, born)) is False and compare_date(date_raw, (None, None, born - 1)) is False:
                 c.differ.append(t("age: {age} in the record ({year}) points to birth in {born}, the tree has {fact}",
                                   age=found.age, year=record.date_parts[2], born=born, fact=date_raw))
@@ -560,37 +568,54 @@ def _records(cited: list[Fact], offline: bool) -> list[archive.Record]:
 
 
 def link_support(fact: Fact, cited: list[Fact], tree: Tree, offline: bool = False) -> tuple[int, int, bool]:
-    """(records naming child and parent, other records naming the child, whether one of those confirms the
-    child's age, birth date or birthplace). Two copies of one baptism (two archives indexing the same
-    register) count once."""
+    """(records naming child and parent, other records of the child that could confirm the birth, whether one
+    of those confirms the child's age, birth date or birthplace). Two copies of one baptism (two archives
+    indexing the same register) count once. A record without age, birth date or birthplace (a burial, a
+    notarial deed), a record of the same kind as a linking one (another index of the baptism), a half match
+    on the name, or a child whose birth the tree does not know, can confirm nothing and does not count."""
     child = tree.persons.get(fact.owner)
     family = tree.families.get(fact.node.value.strip("@ "))
     if not child or not family:
         return 0, 0, False
     parents = [tree.persons[p] for p in family.partners if p in tree.persons]
     linking: dict[tuple, archive.Record] = {}
-    others: list[tuple[archive.Record, archive.RecordPerson]] = []
+    others: list[tuple[archive.Record, archive.RecordPerson, int]] = []
     for record in _records(cited, offline):
-        _, found = _find(child, record, tree)
+        score, found = _find(child, record, tree)
         if not found:
             continue
         roles = {p.role for p in record.persons if _PARENT_ROLES.match(p.role)}
         if any(_best(parent, record, roles)[1] for parent in parents):
             linking[(record.event, record.date_parts)] = record
         else:
-            others.append((record, found))
+            others.append((record, found, score))
     born = _birth(child, list(linking.values()))
-    return len(linking), len(others), any(_confirms(born, r, p) for r, p in others)
+    kinds = {r.event for r in linking.values()}
+    telling = [
+        (r, p) for r, p, score in others
+        if born[0] and score == 2 and r.event not in kinds and _telling(born, r, p)
+    ]  # fmt: skip
+    return len(linking), len(telling), any(_confirms(born, r, p) for r, p in telling)
 
 
 def _birth(child: Person, linking: list[archive.Record]) -> tuple[str, str]:
     """(GEDCOM date, place) of the child's birth: from the tree, else from the baptism that names the parents."""
+    baptism = next((r for r in linking if r.event in ("Doop", "Geboorte") and r.date_parts[2]), None)
     if (birth := child.event("BIRT", "CHR", "BAPM")) and birth.date:
-        return birth.date.raw, birth.place
-    for record in linking:
-        if record.event in ("Doop", "Geboorte") and record.date_parts[2]:
-            return " ".join(str(p) for p in record.date_parts[2:]), record.place
+        return birth.date.raw, birth.place or (baptism.place if baptism else "")
+    if baptism:
+        return " ".join(str(p) for p in baptism.date_parts[2:]), baptism.place
     return "", ""
+
+
+def _telling(born: tuple[str, str], record: archive.Record, found: archive.RecordPerson) -> bool:
+    """Whether the record could confirm the birth: it gives a birth date, a birthplace the tree can compare,
+    or an age with a dated record; and its birth date is not decades off (a father of the same name)."""
+    year = parse_date(born[0]).year if born[0] else None
+    if found.birth_date[2] and year and abs(found.birth_date[2] - year) > 15:
+        return False
+    return bool(found.birth_date[2] or (found.birth_place and born[1])
+                or (_years(found.age) is not None and record.date_parts[2]))  # fmt: skip
 
 
 def _confirms(born: tuple[str, str], record: archive.Record, found: archive.RecordPerson) -> bool:
@@ -601,8 +626,8 @@ def _confirms(born: tuple[str, str], record: archive.Record, found: archive.Reco
         return True
     if found.birth_place and compare_place(place, found.birth_place):
         return True
-    if found.age.isdigit() and record.date_parts[2]:
-        born = record.date_parts[2] - int(found.age)
+    if _years(found.age) is not None and record.date_parts[2]:
+        born = record.date_parts[2] - _years(found.age)
         return bool(compare_date(raw, (None, None, born)) or compare_date(raw, (None, None, born - 1)))
     return False
 
