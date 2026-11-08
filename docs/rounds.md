@@ -112,6 +112,9 @@ Where the numbers come from:
   split the cost evenly. A round counts as measured only when its own worktree sessions were found.
 - **Active time**: the union over all sessions of the stretches between lines at most ten minutes apart;
   waiting on a limit does not count.
+- **Review time**: `review_min` is the active time of the coordinator's sessions (with sub-agents) inside
+  the review windows above; `review_wait_min` the wall-clock time from the round's last own turn to the
+  merge, waiting included. Issue #2 asks for a routine round reviewed in under 15 minutes.
 - **Cost**: API list prices in EUR (`[prices]` in `lineage.toml` overrides a model or `usd_eur`), and the
   subscription share `api_eur / monthly_budget_eur x subscription_eur` per account. `lineage stats
   calibrate [--write]` sets `monthly_budget_eur`: the API-equivalent use of the account (all projects) in

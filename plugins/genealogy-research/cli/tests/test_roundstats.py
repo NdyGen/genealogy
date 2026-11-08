@@ -280,6 +280,8 @@ def test_row_attributes_sessions_review_and_counters(repo, tmp_path):
     assert row["leader_out"] == "200" and row["helpers_out"] == "200"
     assert row["review_out"] == "400"  # c1, c2, c3 and the sub-agent; c00 is before the finish, c0 names another round
     assert row["active_min"] == "3"
+    # Review window c1 (25) to the merge call (29); the round's own last turn at 4, merged at 30.5.
+    assert (row["review_min"], row["review_wait_min"]) == ("4", "26")
     assert row["models"] == "claude-opus-5-5=6550;claude-sonnet-5-5=3930"
     assert (row["oa_requests"], row["rat_requests"], row["download_mb"]) == ("1", "1", "1.0")
     assert (row["scans"], row["scan_mb"]) == ("1", "2.0")
