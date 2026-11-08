@@ -178,11 +178,17 @@ def _quay(node) -> str:
 
 def date_verdict(found: str, expected: str) -> str:
     """right: the same date to the gold's precision; vague: consistent but less precise or a range; wrong."""
-    gold = verify._plain(expected)
-    if not expected or gold is None:
+    if not expected:
         return RIGHT
     if not found:
         return VAGUE
+    gold = verify._plain(expected)
+    if gold is None:
+        # A gold range ("BET 1737 AND 1738"): a date in it is right, a range is vague.
+        plain = verify._plain(found)
+        if plain is None:
+            return VAGUE
+        return RIGHT if verify.compare_date(expected, plain) is not False else WRONG
     if plain := verify._plain(found):
         if any(a is not None and b is not None and a != b for a, b in zip(plain, gold, strict=True)):
             return WRONG
