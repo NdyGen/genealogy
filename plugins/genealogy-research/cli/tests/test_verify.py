@@ -259,6 +259,37 @@ def test_link_whose_other_records_confirm_nothing_is_weak(records):
     assert any("FAMC @F1@" in e for e in result.errors)
 
 
+def test_a_burial_without_age_cannot_make_a_link_weak(records):
+    records[REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
+    records[OTHER_REF] = _record("Begraven", (1, 1, 1860), "Breda", ("Overledene", "Anna Dekkers"))
+    tree = _family_tree(["1 FAMC @F1@", _cite(), "1 BURI", "2 DATE 1 JAN 1860", _cite(OTHER)])
+    assert verify.verify("", tree).links["single"] == 1
+
+
+def test_an_age_in_words_with_jaar_confirms(records):
+    records[REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
+    records[OTHER_REF] = _record("Overlijden", (1, 1, 1880), "Breda", ("Overledene", "Anna Dekkers"))
+    records[OTHER_REF].persons[0].age = "80 jaar"
+    tree = _family_tree(["1 FAMC @F1@", _cite(), "1 DEAT", "2 DATE 1 JAN 1880", _cite(OTHER)])
+    assert verify.verify("", tree).links["independent"] == 1
+
+
+def test_a_namesake_father_in_a_register_does_not_make_a_link_weak(records):
+    records[REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
+    records[OTHER_REF] = _record("Registratie", (None, None, 1830), "Breda", ("Geregistreerde", "Anna Dekkers"))
+    records[OTHER_REF].persons[0].birth_date = (1, 1, 1770)
+    tree = _family_tree(["1 FAMC @F1@", _cite(), "1 RESI", "2 DATE 1830", _cite(OTHER)])
+    assert verify.verify("", tree).links["single"] == 1
+
+
+def test_the_birthplace_comes_from_the_baptism_when_the_tree_has_none(records):
+    records[REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
+    records[OTHER_REF] = _record("Trouwen", (1, 5, 1825), "Breda", ("Bruid", "Anna Dekkers"))
+    records[OTHER_REF].persons[0].birth_place = "Breda"
+    tree = _family_tree(["1 FAMC @F1@", _cite(), "1 MARR", "2 DATE 1 MAY 1825", _cite(OTHER)])
+    assert verify.verify("", tree).links["independent"] == 1
+
+
 def test_two_indexes_of_one_baptism_count_once(records):
     records[REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
     records[OTHER_REF] = _baptism("Anna Dekkers", "Jan Dekkers", "Kee Smit")
