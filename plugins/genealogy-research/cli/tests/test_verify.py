@@ -48,6 +48,8 @@ def records(monkeypatch):
         ("protocol fol. 3; scan: output/scans/akte-3.jpg", "scan", "scan: output/scans/akte-3.jpg"),
         ("Bidprentje; https://example.org/bid/7", "url", "https://example.org/bid/7"),
         ("Genealogie, p. 12", "", ""),
+        ("inv. 145, fol. 12r-13v, scans 0255-0256, 3-4-1742 (scan gelezen)", "scan", "S1:145/0255-0256"),
+        ("fol. 248v-249, contract 17-2-1728, scans 254-255", "scan", "S1:/254-255"),
     ],
 )  # fmt: skip
 def test_reference_forms(page, kind, ref):

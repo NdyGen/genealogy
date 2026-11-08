@@ -135,7 +135,7 @@ merge base, resolves each citation's `PAGE` and compares the record with the fac
 
 - **References**: an Open Archieven record URL (fetched with `archive.show`, cached in
   `~/.cache/lineage/openarch`), a Delpher article URN (its OCR text, cached in `~/.cache/lineage/delpher`),
-  a scan (`RAT <fonds> ... inv. <n> ... scan <n>`, `scan: <file>`, `transkribus: <file>`), any other URL,
+  a scan (`RAT <fonds> ... inv. <n> ... scan <n>`, `scan: <file>`, `transkribus: <file>`, or `inv. <n> ... scan(s) <n>` with the fonds in the source record), any other URL,
   else unresolvable.
 - **Open Archieven**: the person is found among the record's persons by name (given names folded to their
   Latin form, surname prefixes ignored, or as the partner of a named spouse). Same event (birth record for
@@ -145,7 +145,7 @@ merge base, resolves each citation's `PAGE` and compares the record with the fac
   of the record person. FAMC: the child and each parent in a parent role.
 - **Delpher**: surname, given name and year in the OCR text; never a contradiction.
 - **Scans**: no comparison, but the citation or the fact's NOTE needs the marker `reread by lead`
-  (`nagelezen door leider`).
+  (`nagelezen door leider`; the older wording `zelf gelezen` and `eigen lezing` counts too).
 - **Parent links**: for every new FAMC, cited or not (not when a citation has QUAY 1), the Open Archieven records cited
   anywhere at the child are sorted into records naming the child and a parent (one per event and date, so
   two indexes of one baptism count once) and other records naming the child. Independent: two such
