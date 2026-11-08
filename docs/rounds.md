@@ -146,7 +146,7 @@ merge base, resolves each citation's `PAGE` and compares the record with the fac
 - **Delpher**: surname, given name and year in the OCR text; never a contradiction.
 - **Scans**: no comparison, but the citation or the fact's NOTE needs the marker `reread by lead`
   (`nagelezen door leider`).
-- **Parent links**: for a new or changed FAMC with a QUAY 3 citation, the Open Archieven records cited
+- **Parent links**: for every new FAMC, cited or not (not when a citation has QUAY 1), the Open Archieven records cited
   anywhere at the child are sorted into records naming the child and a parent (one per event and date, so
   two indexes of one baptism count once) and other records naming the child. Independent: two such
   records, or one and another record whose age, birth date or birthplace fits the child's birth (from the
@@ -158,6 +158,13 @@ merge base, resolves each citation's `PAGE` and compares the record with the fac
   QUAY 3 citation that resolves. WARNING: partly supported, a contradiction on a lower QUAY, a scan
   without the marker. Exit status 1 on an ERROR only with `--strict` or `[verify] strict = true`; until
   the false-alarm rate is known, verify only measures.
+- **Sample** (`lineage review <ID> --sample N`, `sample.py`): N of the round's cited records (Open
+  Archieven, Delpher, scans), one per record, printed next to the facts that cite them: tree on the left,
+  record on the right, the verify outcome below. Weighted: a new parent link (the child's baptism or birth
+  record for an uncited FAMC) or a correction (a fact that stood with another date, place or value) +3, a
+  contradicted or partly supported citation +2, on a base of 1. The seed is the ID and the merge base, so
+  the coordinator and the review agent see the same records. A scan shows the lead's reading from the
+  citation and fact NOTEs; the scan itself still has to be opened.
 
 ## Runner interface (scripts/round/runner.sh)
 

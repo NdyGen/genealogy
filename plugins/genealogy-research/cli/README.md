@@ -66,7 +66,7 @@ Credentials never go in this file. `lineage auth <service>` (mail, gramps, trans
 - `stale`: life stories that lag behind the tree.
 - `question-map`: heatmap page of open questions.
 - `queue show|add|next|start|done|skip|normalize`: deep-research queue.
-- `review <id>`: mechanical review of a finished research branch.
+- `review <id>`: mechanical review of a finished research branch; `--sample N` also prints N cited records next to the facts they support (weighted towards new parent links and corrections), `--offline` only cached records.
 - `verify <id>|--all [--offline] [--tsv file]`: re-fetch the records cited for new or changed facts (all facts with `--all`) and compare event, date, place and names.
 - `stats [show <id>|record|backfill|calibrate]`: cost and yield per research round (`lineage round stats <id>`).
 - `guard`: keeps research rounds running across usage limits.
