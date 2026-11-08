@@ -38,6 +38,7 @@ from lineage import (
     requests,
     review,
     roundstats,
+    sample,
     scaffold,
     scan,
     settings,
@@ -533,6 +534,12 @@ def cmd_review(args: argparse.Namespace) -> int:
         print(exc, file=sys.stderr)
         return 2
     print(outcome.text())
+    if args.sample:
+        root = roundstats.main_root(_project().root)
+        tip = f"dr/{pid}"
+        base = roundstats._git(root, "merge-base", roundstats.main_branch(root), tip).strip()
+        old, new = roundstats.gedcom_text(root, base), roundstats.gedcom_text(root, tip)
+        print("\n" + sample.sample(old, new, args.sample, seed=f"{pid} {base}", offline=args.cached_only))
     return 1 if outcome.errors else 0
 
 
@@ -1303,6 +1310,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="mechanical review of a finished deep-research branch (dr/<ID>) against main",
     )
     review_parser.add_argument("id")
+    review_parser.add_argument(
+        "--sample", type=int, default=0, metavar="N",
+        help="also print N cited records next to the facts they support, weighted towards new links and corrections",
+    )  # fmt: skip
+    review_parser.add_argument("--offline", dest="cached_only", action="store_true", help="only cached records")
     review_parser.set_defaults(offline=cmd_review)
 
     verify_parser = commands.add_parser(
