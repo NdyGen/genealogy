@@ -114,6 +114,15 @@ def test_a_remarriage_naming_the_first_husband_does_not_date_the_first_marriage(
     assert result.counts()[verify.CONTRADICTED] == 0 and result.counts()[verify.SUPPORTED] == 1
 
 
+def test_a_grandsons_marriage_is_no_contradiction_for_the_grandparents(records):
+    records[REF] = _record("Huwelijk", (1, 2, 1824), "Drunen", ("Bruidegom", "Jan Dekkers"),
+                           ("Bruid", "Johanna Maria Adams"))  # fmt: skip
+    new = ged(_person("I1", "Jan /Dekkers/", "1 FAMS @F1@"), _person("I2", "Anna /Smit/", "1 FAMS @F1@"),
+              "0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 MARR\n2 DATE 17 DEC 1724\n" + _cite())
+    result = verify.verify("", new)
+    assert result.counts()[verify.CONTRADICTED] == 0 and not result.errors
+
+
 def test_a_son_named_after_his_father_is_no_contradiction(records):
     records[REF] = _record("Geboorte", (25, 11, 1824), "Drunen", ("Kind", "Jan Dekkers"), ("Vader", "Jan Dekkers"))
     result = verify.verify("", ged(_person("I1", "Jan /Dekkers/", "1 BIRT", "2 DATE ABT 1782", _cite())))
