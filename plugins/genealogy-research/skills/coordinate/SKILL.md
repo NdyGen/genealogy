@@ -97,6 +97,8 @@ Before you merge:
 6. **Reach:** compare the records of main with those of the branch. Allowed to change: the person, their families, their parents, partners and children for those links, and new records in their ID block. Changes outside that need an explanation in the report.
 7. **Merges of persons** deserve a critical look. Two records with the same name and parents can be a child named after a dead sibling: two baptism records mean two children. If a merge or link, even one already in the file, does not rest on a record, the research must split or unlink it with a NOTE (see the principles in the `deep-research` skill).
 
+**What the review finds, the lead repairs.** A finding in points 0-7 (a claim in the report that is not in the diff, a certainty word too firm, a missing NOTE, a verify ERROR) goes back to the lead: `lineage round tell <ID> "<what is wrong and what you expect>"` (or `--file <path>` for a longer list). A running lead gets the text typed in; after `round finish` its own session is resumed with the message, on the round's account, so it repairs with the round's context. The DONE marker goes, and you wait for the new finish (the watcher reports it) and review again. Repair it yourself only when it is a one-line change, and say so in the merge report. `tell` refuses an account that is not in `dr-accounts` or at its limit; it never moves a round to another account.
+
 Then:
 
 ```bash
@@ -144,7 +146,7 @@ A probable link without a decision goes to the user. A case B link without reaso
 
 A round may run in another agent tool (for example opencode through a model gateway) only if the project's `CLAUDE.md` or `project.md` allows it, and with which data restrictions. Weaker models tend to report changes as done that are not in the diff, and to invent sources, so:
 
-- **Full review** of every such round, not a spot check: the whole report against the diff (point 2 above) and at least ten records looked up yourself with `lineage archive show <ref>`. What is wrong, Claude repairs (a follow-up round or a repair in the worktree) before you merge.
+- **Full review** of every such round, not a spot check: the whole report against the diff (point 2 above) and at least ten records looked up yourself with `lineage archive show <ref>`. What is wrong, Claude repairs before you merge: the lead through `lineage round tell`, or a follow-up round.
 - **Hard requirements in the brief**, always: everything the report calls new is in the diff; the queue is really updated (`lineage queue add`, not only in the report); only sources the agent opened itself; check ages and relationships against the records; the diff check from the `deep-research` skill at the end.
 - **Brief through a file.** Long prompts do not arrive through a pane prompt in such tools. Put the brief in a file in `<output>` of the worktree and send one short line ("Read <output>/<file> and carry it out.").
 - **No `<output>/account`** in such a worktree: the guard would otherwise resume the round on Claude at a limit. That holds as long as `round start` has no option for another agent runtime.

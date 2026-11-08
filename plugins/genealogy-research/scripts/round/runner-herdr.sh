@@ -35,6 +35,7 @@ _accept_trust() {
 
 runner_start_leader() {
   local wt=$1 name=$2 label=$3 model=$4 account=$5 prompt=$6 tab_json pane attempt started out
+  [ -z "${RESUME_SESSION:-}" ] || { echo "the herdr runner cannot resume a session; use the hc runner" >&2; return 1; }
   out=$(out_dir "$wt")
   tab_json=$(herdr tab create --workspace "$HERDR_WORKSPACE_ID" --cwd "$wt" --label "$label" --no-focus)
   mkdir -p "$out"

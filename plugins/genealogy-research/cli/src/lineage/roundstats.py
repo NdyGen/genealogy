@@ -176,6 +176,19 @@ def _role(session: Session) -> str:
     return "leader"
 
 
+def leader_session(worktree: Path, accounts: dict[str, Path]) -> tuple[str, str] | None:
+    """(session id, account) of the round's leader that worked last: what `round tell` resumes when the
+    leader's terminal is gone. Helpers work in the same worktree, so the most recent session is not enough."""
+    best: tuple[dt.datetime, str, str] | None = None
+    for account, config_dir in accounts.items():
+        for session in transcripts.sessions(transcripts.project_dir(config_dir, worktree), config_dir):
+            if session.subagent or _role(session) != "leader" or not session.times:
+                continue
+            if best is None or session.times[-1] > best[0]:
+                best = (session.times[-1], session.path.stem, account)
+    return (best[1], best[2]) if best else None
+
+
 class Coordinator:
     """The coordinator's review of each round in the main checkout's sessions, read once.
 

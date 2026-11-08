@@ -128,6 +128,14 @@ runner_list
     assert listing[0].split("\t")[0] == "dr-i7"
 
 
+def test_a_leader_session_is_resumed_with_the_message(core):
+    env, base = core
+    r = runner(env, base, 'RESUME_SESSION=abc-123 runner_start_leader "$WT" dr-i7 I7 opus work "Message from the coordinator"')
+    assert r.returncode == 0, r.stderr
+    _, _, args = calls(base)[0]
+    assert args == "--resume abc-123 --model opus --permission-mode auto Message from the coordinator"
+
+
 def test_helper_is_a_child_of_its_leader_and_is_cleared_when_done(core):
     env, base = core
     r = runner(env, base, 'runner_start_leader "$WT" dr-i7 I7 opus default "go"; echo "$RUNNER_WHERE"')

@@ -237,7 +237,9 @@ runner_start_leader() {
   old=$(_hc_addr "$name")
   [ -z "$old" ] || hc_close "$old"
   # The brief goes in as claude's first prompt, so it cannot be lost while the agent boots.
-  addr=$(hc_start "$name" "$wt" leader "$id" "" "$dir" claude --model "$model" --permission-mode auto "$prompt") \
+  # RESUME_SESSION (round tell): the leader's own session goes on, with its context, instead of a new one.
+  addr=$(hc_start "$name" "$wt" leader "$id" "" "$dir" claude ${RESUME_SESSION:+--resume "$RESUME_SESSION"} \
+    --model "$model" --permission-mode auto "$prompt") \
     || { echo "hc could not start $name" >&2; return 1; }
   hc label "$addr" "lineage.person=$label" >/dev/null 2>&1 || true
   hc_await_start "$addr" 90 || echo "WARNING: $name did not pick up the brief within 90 seconds (hc read $addr)" >&2
