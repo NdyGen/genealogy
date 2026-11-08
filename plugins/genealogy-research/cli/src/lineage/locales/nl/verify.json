@@ -43,5 +43,17 @@
   "age {age}": "leeftijd {age}",
   "born {birth}": "geboren {birth}",
   "open the scan: {ref}": "open de scan: {ref}",
-  "no reading at the fact": "geen lezing bij het feit"
+  "no reading at the fact": "geen lezing bij het feit",
+  "exam written: {path} ({n} persons without their gold facts)": "examen geschreven: {path} ({n} personen zonder hun goudfeiten)",
+  "living person looked up: {what}": "levende persoon opgezocht: {what}",
+  "held per QUAY: {quays}": "klopte per QUAY: {quays}",
+  "lookups of possibly living persons: {n}": "opzoekingen van mogelijk levende personen: {n}",
+  "facts": "feiten",
+  "parent links": "ouderkoppelingen",
+  "gold": "goud",
+  "{label}: precision {precision}, recall {recall} ({right} right, {vague} vague, {wrong} wrong, {missing} missing)": "{label}: precisie {precision}, recall {recall} ({right} goed, {vague} vaag, {wrong} fout, {missing} ontbreekt)",
+  "right": "goed",
+  "vague": "vaag",
+  "wrong": "fout",
+  "missing": "ontbreekt"
 }

@@ -166,6 +166,27 @@ merge base, resolves each citation's `PAGE` and compares the record with the fac
   the coordinator and the review agent see the same records. A scan shows the lead's reading from the
   citation and fact NOTEs; the scan itself still has to be opened.
 
+## Gold-standard evaluation (`lineage gold`)
+
+A project keeps a gold set: 10 to 20 persons whose facts and parents were checked against scans, in TOML
+(format and a fictional example in `skills/deep-research/evals/fixture/gold.toml`). Per person: `tags`
+(the gold is complete for those event tags), `facts` (tag, date, place, source) and `parents` (role, name,
+birth year).
+
+- `lineage gold exam <gold> --out exam.ged`: the tree without the gold persons' facts of those tags and,
+  where the gold names parents, without the parent link (FAMC and the family's CHIL). Encoding and line
+  endings stay. A round on a copy of the project with this tree has to find them again.
+- `lineage gold score <gold> [--tree round.ged] [--transcripts <logs>]`: per gold fact right (same date
+  to the gold's precision, place not different), vague (consistent but less precise, or a range), wrong,
+  or missing; a fact of a gold tag that the gold does not have is wrong. Precision is right / (right +
+  wrong), recall right / gold. Parent links: the tree's parent must match the gold name (given name and
+  surname) and birth year within two years. Calibration: per QUAY, how many scored facts and links held.
+  Living persons: tool calls in the round's session logs that send the name of a possibly living person
+  to an outside service (WebSearch, WebFetch, MCP tools, `lineage archive|rat|scan|htr|forum|mail`,
+  `curl`, `wget`); a name a deceased person also bears is skipped, local commands are not counted.
+  Exit 1 on any such lookup, or with `--minimum` when a precision or recall is below it. `--json` for
+  the numbers.
+
 ## Runner interface (scripts/round/runner.sh)
 
 `runner.sh` sets `RUNNER=$(lineage config runner)` and sources `runner-$RUNNER.sh`. Each implements:
