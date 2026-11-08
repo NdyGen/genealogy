@@ -156,8 +156,10 @@ merge base, resolves each citation's `PAGE` and compares the record with the fac
   report is recomputed (`yearwords.py`: early modern Dutch and Latin); another year is a WARNING.
 - **Severity**: a fact is proven when a citation has QUAY 3. ERROR: a QUAY 3 citation contradicted, or no
   QUAY 3 citation that resolves. WARNING: partly supported, a contradiction on a lower QUAY, a scan
-  without the marker. Exit status 1 on an ERROR only with `--strict` or `[verify] strict = true`; until
-  the false-alarm rate is known, verify only measures.
+  without the marker. Exit status 1 on an ERROR only with `--strict` or `[verify] strict = true`; then
+  `round finish` refuses. Measured before turning it on (#2): of 26 contradictions in a whole-tree sweep 24
+  were false alarms and of a sample of weak links 13 of 15, all since fixed; the last 30 merged rounds of
+  that tree give 0 ERRORs. A lead who finds an index wrong lowers that citation to QUAY 2 with a NOTE.
 - **Sample** (`lineage review <ID> --sample N`, `sample.py`): N of the round's cited records (Open
   Archieven, Delpher, scans), one per record, printed next to the facts that cite them: tree on the left,
   record on the right, the verify outcome below. Weighted: a new parent link (the child's baptism or birth
