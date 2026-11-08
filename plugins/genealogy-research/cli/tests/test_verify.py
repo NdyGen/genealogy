@@ -90,6 +90,36 @@ def test_burial_a_few_days_off_is_partly_supported(records):
     assert not result.errors
 
 
+def test_marriage_indexed_at_the_banns_is_partly_supported(records):
+    records[REF] = _record("Huwelijk", (16, 5, 1783), "Breda", ("Bruidegom", "Jan Dekkers"), ("Bruid", "Kee Smit"))
+    new = ged(_person("I1", "Jan /Dekkers/", "1 FAMS @F1@"), _person("I2", "Kee /Smit/", "1 FAMS @F1@"),
+              "0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 MARR\n2 DATE 1 JUN 1783\n" + _cite())
+    result = verify.verify("", new)
+    assert result.counts()[verify.PARTIAL] == 1 and not result.errors
+
+
+def test_a_mother_is_not_taken_for_her_child(records):
+    records[REF] = _record("Geboorte", (31, 12, 1834), "Zutphen", ("Kind", "Hendrik Dekkers"),
+                           ("Vader", "Piet Dekkers"), ("Moeder", "Kee Smit"))  # fmt: skip
+    result = verify.verify("", ged(_person("I1", "Kee /Dekkers/", "1 BIRT", "2 DATE ABT 1809", _cite())))
+    assert result.counts()[verify.CONTRADICTED] == 0 and not result.errors
+
+
+def test_a_remarriage_naming_the_first_husband_does_not_date_the_first_marriage(records):
+    records[REF] = _record("Huwelijk", (8, 12, 1816), "Drunen", ("Bruidegom", "Piet Smit"), ("Bruid", "Kee Smit"),
+                           ("other:Eerdere man", "Jan Dekkers"))  # fmt: skip
+    new = ged(_person("I1", "Jan /Dekkers/", "1 FAMS @F1@"), _person("I2", "Kee /Smit/", "1 FAMS @F1@"),
+              "0 @F1@ FAM\n1 HUSB @I1@\n1 WIFE @I2@\n1 MARR\n2 DATE 14 SEP 1806\n" + _cite())
+    result = verify.verify("", new)
+    assert result.counts()[verify.CONTRADICTED] == 0 and result.counts()[verify.SUPPORTED] == 1
+
+
+def test_a_son_named_after_his_father_is_no_contradiction(records):
+    records[REF] = _record("Geboorte", (25, 11, 1824), "Drunen", ("Kind", "Jan Dekkers"), ("Vader", "Jan Dekkers"))
+    result = verify.verify("", ged(_person("I1", "Jan /Dekkers/", "1 BIRT", "2 DATE ABT 1782", _cite())))
+    assert result.counts()[verify.CONTRADICTED] == 0 and not result.errors
+
+
 def test_birth_bounded_by_baptism(records):
     records[REF] = _record("Doop", (14, 3, 1731), "Breda", ("Kind", "Maria Wouters"), ("Vader", "Peter Wouters"))
     result = verify.verify("", ged(_person("I1", "Maria /Wouters/", "1 BIRT", "2 DATE BEF 15 MAR 1731", _cite())))
