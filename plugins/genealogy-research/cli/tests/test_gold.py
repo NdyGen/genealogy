@@ -105,3 +105,11 @@ def test_lookups_of_living_persons_are_counted(gold_set, tree, tmp_path):
     score = gold.score(tree, gold_set, [log])
     assert score.living == ["WebSearch I7 (round.jsonl)", "Bash I7 (round.jsonl)", "WebFetch I7 (round.jsonl)"]
     assert score.text().splitlines()[-1].endswith("3")
+
+
+def test_a_parent_without_surname_matches_on_the_whole_name(gold_set, tree):
+    tree = tree.replace("1 NAME Ann /Taylor/", "1 NAME Ann Cornelis Jans")
+    gold_set[0].parents[1].name = "Ann Cornelis Jans"
+    assert _verdicts(gold.score(tree, gold_set))[("I2", "mother")] == gold.RIGHT
+    gold_set[0].parents[1].name = "Ann Pieters Jans"
+    assert _verdicts(gold.score(tree, gold_set))[("I2", "mother")] == gold.WRONG
