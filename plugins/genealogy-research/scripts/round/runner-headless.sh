@@ -16,7 +16,7 @@ runner_start_leader() {
     cd "$wt"
     eval "$(account_env_snippet "$account")"
     # Its own process group, so runner_stop can end it with its children.
-    detach nohup claude -p "$prompt" --model "$model" --permission-mode auto \
+    detach nohup claude -p "$prompt" ${RESUME_SESSION:+--resume "$RESUME_SESSION"} --model "$model" --permission-mode auto \
       --output-format stream-json --verbose > "$out/leader.log" 2>&1 < /dev/null &
     echo $! > "$out/leader.pid"
   )

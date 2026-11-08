@@ -6,7 +6,7 @@ runner_start_leader() {
   dir=$(account_dir "$account")
   dir=${dir/#\~/$HOME}
   echo
-  echo "Open Claude in $wt${dir:+ (CLAUDE_CONFIG_DIR=$dir)}, model $model, and say:"
+  echo "Open Claude in $wt${dir:+ (CLAUDE_CONFIG_DIR=$dir)}${RESUME_SESSION:+ with --resume $RESUME_SESSION}, model $model, and say:"
   echo
   echo "$prompt"
   echo

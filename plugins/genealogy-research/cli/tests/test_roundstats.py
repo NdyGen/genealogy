@@ -301,6 +301,17 @@ def test_row_attributes_sessions_review_and_counters(repo, tmp_path):
     assert "1 measured rounds" in roundstats.summary(roundstats.read_rows(path))
 
 
+def test_the_leader_session_is_the_last_leader_not_a_helper(repo, tmp_path):
+    cfg = tmp_path / "cfg"
+    worktree = repo / ".worktrees" / "dr-I1"
+    folder = transcripts.project_dir(cfg, worktree)
+    write_session(folder / "lead-1.jsonl", user(1, "Use the deep-research skill for person I1."), assistant(5, "a"))
+    write_session(folder / "lead-2.jsonl", user(10, "Use the deep-research skill for person I1."), assistant(20, "b"))
+    write_session(folder / "help.jsonl", user(30, "Read the brief in x.brief.md and do it."), assistant(40, "c"))
+    assert roundstats.leader_session(worktree, costs.account_dirs()) == ("lead-2", "personal")
+    assert roundstats.leader_session(repo / ".worktrees" / "dr-I9", costs.account_dirs()) is None
+
+
 def test_older_command_and_prompt_names_are_recognised(tmp_path):
     path = write_session(tmp_path / "s.jsonl", user(0, "Lees de opdracht in x.opdracht.md"),
                          assistant(1, "a", blocks=[bash("uv run ndygen review I5")]),

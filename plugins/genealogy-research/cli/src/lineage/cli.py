@@ -599,6 +599,17 @@ def cmd_gold(args: argparse.Namespace) -> int:
     return 1 if below or result.living else 0
 
 
+def cmd_leader_session(args: argparse.Namespace) -> int:
+    pid = args.id.strip("@").upper()
+    root = roundstats.main_root(_project().root)
+    found = roundstats.leader_session(root / ".worktrees" / f"dr-{pid}", costs.account_dirs())
+    if not found:
+        print(t("no leader session of {id} found", id=pid), file=sys.stderr)
+        return 1
+    print("\t".join(found))
+    return 0
+
+
 def cmd_stats(args: argparse.Namespace) -> int:
     root = roundstats.main_root(_project().root)
     if args.stats_command == "show":
@@ -1350,6 +1361,12 @@ def build_parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("--strict", action="store_true", help="exit 1 on errors ([verify] strict does the same)")
     verify_parser.add_argument("--tsv", type=Path, help="write every citation and its outcome to this file")
     verify_parser.set_defaults(offline=cmd_verify)
+
+    session_parser = commands.add_parser(
+        "leader-session", help="session id and account of a round's leader (used by 'lineage round tell')"
+    )
+    session_parser.add_argument("id")
+    session_parser.set_defaults(offline=cmd_leader_session)
 
     gold_parser = commands.add_parser(
         "gold", help="gold-standard evaluation: strip checked facts from a tree, score a round's tree against them"

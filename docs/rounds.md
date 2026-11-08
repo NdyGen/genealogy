@@ -13,7 +13,7 @@ plugins/genealogy-research/
   scripts/round/
     runner.sh                      # sourced: picks the runner, loads runner-<name>.sh, common helpers
     runner-hc.sh  runner-herdr.sh  runner-headless.sh  runner-inline.sh
-    start.sh  helper.sh  finish.sh  merge.sh  stats.sh  undo.sh  watch.sh  start-guard.sh  start-coordinator.sh
+    start.sh  helper.sh  finish.sh  tell.sh  merge.sh  stats.sh  undo.sh  watch.sh  start-guard.sh  start-coordinator.sh
   skills/deep-research/            # SKILL.md, references/{report.md, sources-nl.md, lessons.md}, evals/
   skills/coordinate/               # SKILL.md (was references/coordinatie.md); user-invoked only
   skills/life-book/                # was levensboek; scripts/pdf.py
@@ -87,6 +87,18 @@ New CLI commands for the scripts:
   PATH, else `herdr` when `HERDR_ENV=1` and `herdr` is on PATH, else `inline`.
 - `lineage config accounts`: one line per account, `name<TAB>config_dir` (config_dir empty for the
   default). Without `[accounts]` a single line `default<TAB>`.
+
+## Talking to a lead (`lineage round tell`)
+
+Agents work through files: a brief and a result file between lead and helper, `<output>/DONE` and the branch
+between lead and coordinator. The one way back is `lineage round tell <ID> <text>` (or `--file <path>`), for
+what the coordinator's review finds. A running lead (`runner_prompt`: `hc send`, `herdr agent prompt`) gets
+the text typed in. After `round finish` the lead's terminal is gone: `lineage leader-session <ID>` finds the
+last leader session in the worktree (not a helper's, which work in the same folder) and `tell` resumes it
+(`claude --resume <id>`) with the message as its next prompt, on that session's account, so the lead keeps the
+round's context. The account must be in `dr-accounts` and not at its limit. `tell` removes DONE, so the
+coordinator waits for the new finish. The hc and headless runners resume; herdr cannot, inline prints the
+command.
 
 ## Cost per round (`lineage stats`)
 
