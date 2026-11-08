@@ -349,9 +349,10 @@ def compare_record(fact: Fact, record: archive.Record, tree: Tree) -> _Compariso
     principal_roles = _PRINCIPAL.get(record.event, set())
     matches = {person.id: _find(person, record, tree) for person in persons}
     # A remarriage names the first partner as "earlier husband": the record proves who, not when.
-    other_marriage = fact.owner in tree.families and any(
-        found and found.role not in principal_roles for _, found in matches.values()
-    )
+    family = fact.owner in tree.families
+    other_marriage = family and any(found and found.role not in principal_roles for _, found in matches.values())
+    # A grandson named after his grandfather marries someone with a name like his grandmother's.
+    half_couple = family and any(score < 2 for score, _ in matches.values())
     for person in persons:
         score, found = matches[person.id]
         if not found:
@@ -369,7 +370,7 @@ def compare_record(fact: Fact, record: archive.Record, tree: Tree) -> _Compariso
                 # indexes the banns or the betrothal, weeks before the wedding; and a person found on half a
                 # name, or next to a namesake (a son named after his father), may be someone else.
                 low = -60 if fact.tag == "MARR" else -10
-                close = _near(date_raw, record.date_parts, low, 10) or score < 2 or namesakes
+                close = _near(date_raw, record.date_parts, low, 10) or score < 2 or namesakes or half_couple
                 (c.differ if close else c.conflict).append(t(
                     "date: {fact} in the tree, {record} in the record",
                     fact=date_raw, record=_date_text(record.date_parts)))
