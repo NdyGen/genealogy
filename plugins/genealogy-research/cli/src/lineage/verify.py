@@ -210,6 +210,11 @@ def _similar(a: str, b: str) -> bool:
     return a == b or (len(a) > 2 and len(b) > 2 and SequenceMatcher(None, a, b).ratio() >= 0.8)
 
 
+def _given_matches(person: Person, record_name: str) -> bool:
+    given = [_given_key(w) for w in _tokens(person.given)]
+    return bool(given) and any(_similar(given[0], _given_key(w)) for w in _tokens(record_name))
+
+
 def name_score(person: Person, record_name: str) -> int:
     """2: given name and surname match, 1: one of them, 0: neither."""
     words = _tokens(record_name)
@@ -224,12 +229,14 @@ def name_score(person: Person, record_name: str) -> int:
 
 
 def _best(person: Person, record: archive.Record, roles: set[str] | None = None) -> tuple[int, archive.RecordPerson | None]:
+    # On a tie the given name decides: a mother shares the record with a child bearing the father's surname.
     best: tuple[int, archive.RecordPerson | None] = (0, None)
     for candidate in record.persons:
         if roles is not None and candidate.role not in roles:
             continue
         score = name_score(person, candidate.name)
-        if score > best[0]:
+        tie = score == best[0] and score and best[1] and not _given_matches(person, best[1].name)
+        if score > best[0] or (tie and _given_matches(person, candidate.name)):
             best = (score, candidate)
     return best
 
@@ -340,17 +347,29 @@ def compare_record(fact: Fact, record: archive.Record, tree: Tree) -> _Compariso
     date_raw = fact.node.value_of("DATE")
     place = fact.node.value_of("PLAC")
     principal_roles = _PRINCIPAL.get(record.event, set())
+    matches = {person.id: _find(person, record, tree) for person in persons}
+    # A remarriage names the first partner as "earlier husband": the record proves who, not when.
+    other_marriage = fact.owner in tree.families and any(
+        found and found.role not in principal_roles for _, found in matches.values()
+    )
     for person in persons:
-        score, found = _find(person, record, tree)
+        score, found = matches[person.id]
         if not found:
             c.differ.append(t("{name} not found in the record", name=person.name))
             continue
+        if other_marriage:
+            c.agree.append("name")
+            continue
         principal = found.role in principal_roles
+        namesakes = sum(name_score(person, p.name) == score for p in record.persons) > 1
         if fact.tag in _SAME and principal and record.event in _SAME[fact.tag]:
             match = compare_date(date_raw, record.date_parts)
             if match is False:
-                # Burial registers often index the day the burial was reported, a few days off.
-                close = _near(date_raw, record.date_parts, -10, 10)
+                # Burial registers often index the day the burial was reported, a few days off; marriage
+                # indexes the banns or the betrothal, weeks before the wedding; and a person found on half a
+                # name, or next to a namesake (a son named after his father), may be someone else.
+                low = -60 if fact.tag == "MARR" else -10
+                close = _near(date_raw, record.date_parts, low, 10) or score < 2 or namesakes
                 (c.differ if close else c.conflict).append(t(
                     "date: {fact} in the tree, {record} in the record",
                     fact=date_raw, record=_date_text(record.date_parts)))
