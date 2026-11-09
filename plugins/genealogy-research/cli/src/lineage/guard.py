@@ -207,7 +207,9 @@ class HcCli:
         if (terminal.get("state") != "live" or foreground.get("name") != "claude"
                 or Path(foreground.get("cwd", "")).resolve() != root.resolve()):
             return "gone"
-        if hc_status(terminal) != "idle":
+        # hc reports a finished turn as "done" until someone looks at the terminal; "blocked" waits on a
+        # question or permission prompt that typed text would answer.
+        if hc_status(terminal) not in ("idle", "done"):
             return "busy"
         return "sent" if self._hc("send", address, text).returncode == 0 else "busy"
 

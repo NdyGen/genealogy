@@ -843,6 +843,8 @@ def test_hc_tells_only_an_idle_claude_session_in_the_project(tmp_path, monkeypat
         session("t2", "bash", str(root)),
         session("t3", "claude", str(tmp_path)),
         session("t4", "claude", str(root), state="working"),
+        session("t6", "claude", str(root), state="done"),
+        session("t7", "claude", str(root), state="blocked"),
     ])
     hc = guard.HcCli(Path(PROJECT))
     assert hc.tell_session("t1", root, "round done") == "sent"
@@ -850,5 +852,7 @@ def test_hc_tells_only_an_idle_claude_session_in_the_project(tmp_path, monkeypat
     assert hc.tell_session("t3", root, "round done") == "gone"
     assert hc.tell_session("t4", root, "round done") == "busy"
     assert hc.tell_session("t5", root, "round done") == "gone"
+    assert hc.tell_session("t6", root, "round done") == "sent"
+    assert hc.tell_session("t7", root, "round done") == "busy"
     sent = [line for line in calls.read_text().splitlines() if line.startswith("send")]
-    assert sent == ["send t1 round done"]
+    assert sent == ["send t1 round done", "send t6 round done"]
