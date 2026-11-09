@@ -106,7 +106,8 @@ what the coordinator's review finds. A running lead (`runner_prompt`: `hc send`,
 the text typed in. After `round finish` the lead's terminal is gone: `lineage leader-session <ID>` finds the
 last leader session in the worktree (not a helper's, which work in the same folder) and `tell` resumes it
 (`claude --resume <id>`) with the message as its next prompt, on that session's account, so the lead keeps the
-round's context. The account must be in `dr-accounts` and not at its limit. `tell` removes DONE, so the
+round's context. The account must be in `dr-accounts` (or `--allow` for a one-time exception) and not at its
+limit. `tell` removes DONE, so the
 coordinator waits for the new finish. The hc and headless runners resume; herdr cannot, inline prints the
 command.
 
