@@ -110,5 +110,6 @@
   "a notice goes only to the own address ([mail] own_address)": "een melding gaat alleen naar het eigen adres ([mail] own_address)",
   "would remove: {kinds} ({freed:.1f} GB); then {free:.1f} GB free": "zou verwijderen: {kinds} ({freed:.1f} GB); dan {free:.1f} GB vrij",
   "cached scans": "scans in de cache",
-  "register pages": "registerpagina's"
+  "register pages": "registerpagina's",
+  "[guard] Round {id} is done and waits for review and merge ('lineage review {id}'); no coordinator is running. This is a notice from the guard, not an instruction from the user.": "[guard] Ronde {id} is klaar en wacht op review en samenvoegen ('lineage review {id}'); er draait geen coördinator. Dit is een melding van de guard, geen opdracht van de gebruiker."
 }

@@ -88,6 +88,16 @@ New CLI commands for the scripts:
 - `lineage config accounts`: one line per account, `name<TAB>config_dir` (config_dir empty for the
   default). Without `[accounts]` a single line `default<TAB>`.
 
+## Telling the starting session (`<output>/caller`)
+
+`round start` run from an hc terminal writes that terminal's address (`HC_TERMINAL_ID`) to `<output>/caller`.
+When the round has DONE and nobody coordinates (no `coordinator` terminal, no live session with a fresh
+heartbeat), the guard types one notice into that terminal: the round waits for review and merge. It only
+does so while the terminal still runs Claude in the project's main folder (a shell would run the text) and
+waits for input; a busy session is tried again on the next check. `<output>/caller-told` records that it was
+told, or that the terminal is gone; `round start` (a resume) and `round tell` remove it, so the next DONE is
+announced again. herdr has no such notice.
+
 ## Talking to a lead (`lineage round tell`)
 
 Agents work through files: a brief and a result file between lead and helper, `<output>/DONE` and the branch
