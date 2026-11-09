@@ -5,19 +5,22 @@
 # A live leader gets the text typed in. After `round finish` its terminal is gone: then its own Claude session
 # (the last leader session in the worktree) is resumed with the text as its next prompt, on the round's
 # account. Either way the round's DONE marker goes, so the coordinator waits for the leader's new finish.
-# Usage: lineage round tell <ID> <text> | lineage round tell <ID> --file <path> [--account <name>]
+# --allow: a one-time exception for an account that dr-accounts does not allow (see `round start --allow`).
+# Usage: lineage round tell <ID> <text> | lineage round tell <ID> --file <path> [--account <name>] [--allow]
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/runner.sh"
-USAGE="usage: lineage round tell <ID> <text> | --file <path> [--account <name>]"
+USAGE="usage: lineage round tell <ID> <text> | --file <path> [--account <name>] [--allow]"
 ID=${1:?$USAGE}
 ID=$(upper "${ID#@}")
 shift
 TEXT=
 ACCOUNT=
+ALLOW=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --file) TEXT=$(cat "${2:?path missing}"); shift 2;;
     --account) ACCOUNT=${2:?account missing}; shift 2;;
+    --allow) ALLOW=1; shift;;
     *) TEXT="${TEXT:+$TEXT }$1"; shift;;
   esac
 done
@@ -46,8 +49,9 @@ ACCOUNT=${ACCOUNT:-$SESSION_ACCOUNT}
 [ "$ACCOUNT" = "$SESSION_ACCOUNT" ] || {
   echo "the leader's session is on account $SESSION_ACCOUNT; a session cannot be resumed on $ACCOUNT" >&2; exit 2; }
 ALLOWED=$(allowed_accounts)
+[ "$ALLOW" = 1 ] && ALLOWED=$ACCOUNT
 case " $ALLOWED " in *" $ACCOUNT "*) ;; *)
-  echo "account $ACCOUNT is not allowed (allowed: $ALLOWED); allow it in $COMMON/dr-accounts for this message" >&2
+  echo "account $ACCOUNT is not allowed (allowed: $ALLOWED); --allow makes a one-time exception" >&2
   exit 2;;
 esac
 if account_on_limit "$ACCOUNT"; then

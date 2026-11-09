@@ -14,14 +14,17 @@
 # brief (path in the repository, committed in main) that the leader reads first.
 # --update-story: only update the life story with facts recorded after it was written (`lineage stale`): no
 # queue, no ID block, sonnet by default; the worktree gets the marker <output>/update.
+# --allow: a one-time exception for the explicit --account, which dr-accounts does not allow. dr-accounts
+# itself stays as it is: the guard reads it too, and widening it for a moment let it resume a waiting round on
+# that account.
 # --force: also start when a running round touches the same family (only if the brief keeps that family out
 # of the round).
 # Usage: lineage round start <ID> [--model opus|sonnet] [--resume] [--follow-up|--update-story]
-#        [--brief <path>] [--account <name>|auto] [--force]
+#        [--brief <path>] [--account <name>|auto [--allow]] [--force]
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/runner.sh"
 
-USAGE="usage: lineage round start <ID> [--model opus|sonnet] [--resume] [--follow-up|--update-story] [--brief <path>] [--account <name>|auto] [--force]"
+USAGE="usage: lineage round start <ID> [--model opus|sonnet] [--resume] [--follow-up|--update-story] [--brief <path>] [--account <name>|auto [--allow]] [--force]"
 ID=${1:?$USAGE}
 ID=$(upper "${ID#@}")
 shift
@@ -32,12 +35,14 @@ FOLLOW_UP=
 FORCE=
 UPDATE=0
 BRIEF=
+ALLOW=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --model) MODEL=${2:?model missing}; shift 2;;
     --resume|--hervat) RESUME=1; shift;;
     --account) ACCOUNT=${2:?account missing}; shift 2;;
     --follow-up|--vervolg) FOLLOW_UP=--follow-up; shift;;
+    --allow) ALLOW=1; shift;;
     --force|--forceer) FORCE=--force; shift;;
     --update-story|--bijwerk) UPDATE=1; shift;;
     --brief|--opdracht) BRIEF=${2:?path missing}; shift 2;;
@@ -68,6 +73,13 @@ for p in .worktrees "$OUT"; do
 done
 
 ALLOWED=$(allowed_accounts)
+if [ "$ALLOW" = 1 ]; then
+  [ -n "$ACCOUNT" ] && [ "$ACCOUNT" != auto ] || { echo "--allow needs an explicit --account <name>" >&2; exit 2; }
+  case " $(account_table | awk -F'\t' '{print $1}' | tr '\n' ' ') " in *" $ACCOUNT "*) ;; *)
+    echo "account $ACCOUNT is not configured (lineage config accounts)" >&2; exit 2;;
+  esac
+  ALLOWED=$ACCOUNT
+fi
 FIRST_ALLOWED=${ALLOWED%% *}
 [ -n "$ACCOUNT" ] || ACCOUNT=$([ "$RESUME" = 1 ] && echo auto || echo "$FIRST_ALLOWED")
 if [ "$ACCOUNT" = auto ]; then
@@ -82,7 +94,7 @@ if [ "$ACCOUNT" = auto ]; then
     exit 3
   fi
 fi
-case " $ALLOWED " in *" $ACCOUNT "*) ;; *) echo "account $ACCOUNT is not allowed (allowed: $ALLOWED)" >&2; exit 2;; esac
+case " $ALLOWED " in *" $ACCOUNT "*) ;; *) echo "account $ACCOUNT is not allowed (allowed: $ALLOWED); --allow makes a one-time exception" >&2; exit 2;; esac
 
 load_runner
 
