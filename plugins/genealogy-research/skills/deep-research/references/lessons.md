@@ -16,7 +16,7 @@ Patterns that recurred across many rounds and reviews, without project details. 
 
 - **A helper's reading is never proven.** A death, a marginal note or a year read by a helper agent must be reread by the research lead on the scan, or called probable. A marginal note once turned out to be nine years later than the helper read, because a year written as words ("seventeen hundred and eighty seven") was converted wrongly. The scan reader must give year words literally and the conversion separately.
 - **Index lines can mean the wrong person.** An explanation based on an index line alone ("concerns the children and heirs of X") may refer to another X. The later round that reads the full record corrects the earlier one: the coordinator then fixes the earlier person's report, NOTE and life story.
-- **An index gives the death day as the burial date.** Check the record before using the date as a burial.
+- **An index gives the death day, or the day of the declaration to the tax collector (gaarder), as the burial date.** Check the record before using the date as a burial. A declaration is an upper bound for death and burial, not the burial day; some indexes keep the real burial day only in the remarks.
 - **A review agent does not know the scale well.** Give it the definitions of the certainty scale. It may propose words off the scale, and it can raise false alarms (two different baptisms in one year taken for a contradiction; an old value that was a helper's reading). Check its findings against the scan.
 - **A normalised reading quoted as literal.** A quote in the report must be what the scan says, not the modernised spelling or the name you expected.
 
