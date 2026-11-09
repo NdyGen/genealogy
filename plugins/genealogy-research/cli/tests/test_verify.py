@@ -325,3 +325,36 @@ def test_year_words_that_do_not_match_the_conversion():
     found = verify.year_readings({"01-scan.md": '- year in words: "1700 Zeeven entagtig" = 1777\n'
                                                 '- year in words: "1700 zeven en tachtig" = 1787'})
     assert found == ['01-scan.md: "1700 Zeeven entagtig" is 1787, not 1777']
+
+
+def test_burial_dated_by_the_death_is_supported_by_the_burial_date_in_the_remark(records):
+    record = _record("Begraven", (27, 1, 1801), "Breda", ("Overledene", "Jan Dekkers"))
+    record.remarks = ["Opmerking: Datum begraven: 31-01-1801<br />Plaats begraven: Breda"]
+    records[REF] = record
+    result = verify.verify("", ged(_person("I1", "Jan /Dekkers/", "1 BURI", "2 DATE 31 JAN 1801", _cite())))
+    assert result.counts()[verify.SUPPORTED] == 1 and not result.warnings
+
+
+def test_a_remark_date_that_differs_does_not_hide_the_difference(records):
+    record = _record("Begraven", (27, 1, 1801), "Breda", ("Overledene", "Jan Dekkers"))
+    record.remarks = ["Opmerking: Datum begraven: 31-01-1801"]
+    records[REF] = record
+    result = verify.verify("", ged(_person("I1", "Jan /Dekkers/", "1 BURI", "2 DATE 3 MAR 1802", _cite())))
+    assert result.errors
+
+
+def test_baptism_dated_by_the_birth_is_supported_by_the_baptism_date_in_the_remark(records):
+    record = _record("Doop", (2, 3, 1760), "Breda", ("Kind", "Jan Dekkers"))
+    record.remarks = ["Opmerking: Datum dopen: 20-03-1760"]
+    records[REF] = record
+    result = verify.verify("", ged(_person("I1", "Jan /Dekkers/", "1 CHR", "2 DATE 20 MAR 1760", _cite())))
+    assert result.counts()[verify.SUPPORTED] == 1
+
+
+def test_burial_placed_by_the_death_is_supported_by_the_burial_place_in_the_remark(records):
+    record = _record("Begraven", (31, 1, 1801), "Breda", ("Overledene", "Jan Dekkers"))
+    record.remarks = ["Opmerking: Datum begraven: 31-01-1801<br />Plaats begraven: Princenhage"]
+    records[REF] = record
+    tree = ged(_person("I1", "Jan /Dekkers/", "1 BURI", "2 DATE 31 JAN 1801", "2 PLAC Princenhage", _cite()))
+    result = verify.verify("", tree)
+    assert result.counts()[verify.SUPPORTED] == 1 and not result.warnings
