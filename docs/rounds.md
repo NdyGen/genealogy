@@ -94,7 +94,7 @@ New CLI commands for the scripts:
 When the round has DONE and nobody coordinates (no `coordinator` terminal, no live session with a fresh
 heartbeat), the guard types one notice into that terminal: the round waits for review and merge. It only
 does so while the terminal still runs Claude in the project's main folder (a shell would run the text) and
-waits for input; a busy session is tried again on the next check. `<output>/caller-told` records that it was
+waits for input (hc `idle` or `done`, not `blocked`, where the text would answer a prompt); a busy session is tried again on the next check. `<output>/caller-told` records that it was
 told, or that the terminal is gone; `round start` (a resume) and `round tell` remove it, so the next DONE is
 announced again. herdr has no such notice.
 
