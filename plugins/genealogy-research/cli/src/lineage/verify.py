@@ -81,6 +81,9 @@ _PRINCIPAL = {
     "Begraven": {"Overledene"}, "Huwelijk": {"Bruidegom", "Bruid"}, "Trouwen": {"Bruidegom", "Bruid"},
     "Ondertrouw": {"Bruidegom", "Bruid"},
 }  # fmt: skip
+# Some indexes date and place a record by another event and give those of the event itself in a remark
+# ("Datum begraven: 31-01-1801<br />Plaats begraven: ..." on a burial dated by the death).
+_REMARK_EVENT = {"BURI": "begraven", "CHR": "dopen", "BAPM": "dopen", "MARR": "trouwen", "MARB": "ondertrouw"}
 _PARENT_ROLES = re.compile(r"^(?:Vader|Moeder)\b", re.I)
 _CHILD_ROLES = {"Kind", "Dopeling", "Bruidegom", "Bruid", "Overledene", "Geregistreerde"}
 
@@ -355,6 +358,19 @@ def _fact_persons(fact: Fact, tree: Tree) -> list[Person]:
     return [tree.persons[p] for p in family.partners if p in tree.persons] if family else []
 
 
+def _remarked(record: archive.Record, tag: str, field: str) -> str:
+    if tag not in _REMARK_EVENT:
+        return ""
+    pattern = re.compile(rf"\b{field} {_REMARK_EVENT[tag]}:\s*([^<\n]+)", re.I)
+    found = next((m for remark in record.remarks if (m := pattern.search(remark))), None)
+    return found[1].strip() if found else ""
+
+
+def remark_date(record: archive.Record, tag: str) -> tuple[int, int, int] | None:
+    found = re.fullmatch(r"(\d{1,2})-(\d{1,2})-(\d{4})", _remarked(record, tag, "Datum"))
+    return (int(found[1]), int(found[2]), int(found[3])) if found else None
+
+
 def compare_record(fact: Fact, record: archive.Record, tree: Tree) -> _Comparison:
     c = _Comparison()
     if fact.tag == "FAMC":
@@ -385,6 +401,8 @@ def compare_record(fact: Fact, record: archive.Record, tree: Tree) -> _Compariso
         namesakes = sum(name_score(person, p.name) == score for p in record.persons) > 1
         if fact.tag in _SAME and principal and record.event in _SAME[fact.tag]:
             match = compare_date(date_raw, record.date_parts)
+            if match is False and (remarked := remark_date(record, fact.tag)):
+                match = compare_date(date_raw, remarked)
             if match is False:
                 # Burial registers often index the day the burial was reported, a few days off; marriage
                 # indexes the banns or the betrothal, weeks before the wedding; and a person found on half a
@@ -396,7 +414,10 @@ def compare_record(fact: Fact, record: archive.Record, tree: Tree) -> _Compariso
                     fact=date_raw, record=_date_text(record.date_parts)))
             elif match:
                 c.agree.append("date")
-            if (same_place := compare_place(place, record.place)) is False:
+            same_place = compare_place(place, record.place)
+            if same_place is False and (remarked_place := _remarked(record, fact.tag, "Plaats")):
+                same_place = compare_place(place, remarked_place)
+            if same_place is False:
                 c.differ.append(t("place: {fact} in the tree, {record} in the record", fact=place, record=record.place))
             elif same_place:
                 c.agree.append("place")
