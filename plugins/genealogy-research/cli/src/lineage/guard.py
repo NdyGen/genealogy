@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Protocol
 
 from lineage import disk, settings
+from lineage.i18n import t
 from lineage.limits import LIMIT, limit_reset
 
 QUIET = ("idle", "done", "blocked")
@@ -72,6 +73,7 @@ class Runner(Protocol):
     def close_round(self, id_: str, out: Path) -> bool: ...
     def pane_status(self, pane: str) -> str | None: ...
     def close_pane(self, pane: str) -> bool: ...
+    def tell_session(self, address: str, root: Path, text: str) -> str: ...
 
 
 def heartbeat_key(pane: str) -> str:
@@ -115,6 +117,9 @@ class HerdrCli:
 
     def close_pane(self, pane: str) -> bool:
         return False
+
+    def tell_session(self, address: str, root: Path, text: str) -> str:
+        return "gone"
 
     def close_round(self, id_: str, out: Path) -> bool:
         tab = marker(out, "runner-tab")
@@ -191,11 +196,26 @@ class HcCli:
         self._hc("rm", pane)
         return True
 
+    def tell_session(self, address: str, root: Path, text: str) -> str:
+        """Types text into a Claude session in the project's main folder, once it waits for input. A terminal
+        that now runs something else (a shell would run the text) or works elsewhere is "gone"."""
+        got = self._hc("get", address)
+        if got.returncode != 0:
+            return "gone"
+        terminal = json.loads(got.stdout)
+        foreground = terminal.get("foreground") or {}
+        if (terminal.get("state") != "live" or foreground.get("name") != "claude"
+                or Path(foreground.get("cwd", "")).resolve() != root.resolve()):
+            return "gone"
+        if hc_status(terminal) != "idle":
+            return "busy"
+        return "sent" if self._hc("send", address, text).returncode == 0 else "busy"
+
     def close_round(self, id_: str, out: Path) -> bool:
         terminals = self._terminals(f"lineage.project={self.project}", f"lineage.round={id_}")
-        for t in terminals:
-            self._hc("kill", t["address"])
-            self._hc("rm", t["address"])
+        for terminal in terminals:
+            self._hc("kill", terminal["address"])
+            self._hc("rm", terminal["address"])
         return bool(terminals)
 
 
@@ -292,6 +312,7 @@ class Guard:
         self.known = accounts or project_accounts()
         self.keeper = keeper
         self._active: set[str] = set()
+        self._done: list[tuple[str, Path]] = []
         self._room = True
         state.mkdir(parents=True, exist_ok=True)
 
@@ -372,6 +393,8 @@ class Guard:
         idl = id_.lower()
         if marker(out, "DONE") or not (out / "account").exists():
             state.pop(id_, None)
+            if marker(out, "DONE"):
+                self._done.append((id_, out))
             return None
         mine = state.setdefault(id_, {})
         account = (out / "account").read_text().strip() or self.known[0]
@@ -528,9 +551,38 @@ class Guard:
             return f"coordinator: session {', '.join(closed)} closed, every account full"
         return f"coordinator: other session idle, every account full ({watcher})"
 
+    def _coordinating(self, now: int) -> bool:
+        if COORDINATOR in self.runner.agent_status():
+            return True
+        live = {heartbeat_key(p) for p in self.runner.live_panes()}
+        return any(p in live and now - beat < COORDINATOR_QUIET for p, beat in self._heartbeats().items())
+
+    def _tell_callers(self, now: int) -> list[str]:
+        """A finished round waits for review; with nobody coordinating, the session that started it hears so."""
+        if not self._done or self._coordinating(now):
+            return []
+        parts = []
+        for id_, out in self._done:
+            caller = out / "caller"
+            if not caller.exists() or (out / "caller-told").exists():
+                continue
+            address = caller.read_text().strip()
+            text = t("[guard] Round {id} is done and waits for review and merge ('lineage review {id}'); no "
+                     "coordinator is running. This is a notice from the guard, not an instruction from the user.",
+                     id=id_)
+            outcome = self.runner.tell_session(address, self.root, text)
+            if outcome == "sent":
+                (out / "caller-told").write_text(f"{now}\n")
+                self.log(f"{id_} done: session {address} told")
+            elif outcome == "gone":
+                (out / "caller-told").write_text(f"{now} gone\n")
+            parts.append(f"{id_} done, session {address} {outcome}")
+        return parts
+
     def run_round(self, now: int) -> None:
         agents = self.runner.agent_status()
         self._active = {n for n in agents if n.startswith("dr-")}
+        self._done = []
         state = self._handled()
         disk_status = ""
         if self.keeper is not None:
@@ -543,6 +595,7 @@ class Guard:
             for a in self.accounts()))
         if self.coordinator is not None:
             parts.append(self._coordinate(agents, state, now))
+        parts += self._tell_callers(now)
         if disk_status:
             parts.append(disk_status)
         self._save(state)

@@ -80,6 +80,8 @@ class World:
         self.closed = []
         self.sessions = {"w1:p-other"}
         self.session_status = {}
+        self.callers = {}
+        self.told = []
 
     def research(self, id_, account="work", done=False):
         out = self.root / ".worktrees" / f"dr-{id_}" / "output"
@@ -113,6 +115,12 @@ class World:
         for name in [n for n in self.agents if n == f"dr-{id_.lower()}" or n.startswith(f"{id_.lower()}-")]:
             del self.agents[name]
         return True
+
+    def tell_session(self, address, root, text):
+        outcome = self.callers.get(address, "gone")
+        if outcome == "sent":
+            self.told.append((address, text))
+        return outcome
 
     def resume_stub(self, id_, account, out):
         self.resumed.append((id_, account))
@@ -615,6 +623,11 @@ if cmd == "ls":
         return all(t.get("labels", {}).get(k) == v for k, _, v in (w.partition("=") for w in wanted))
     print(json.dumps({"terminals": [
         {k: v for k, v in t.items() if k != "labels"} for t in terminals if match(t)]}))
+elif cmd == "get":
+    found = [t for t in terminals if t["address"] == rest[0]]
+    if not found:
+        sys.exit(1)
+    print(json.dumps(found[0]))
 elif cmd == "read":
     print(next(t.get("screen", "") for t in terminals if t["address"] == rest[0]))
 '''
@@ -748,3 +761,94 @@ def test_coordinator_nudge_and_close_go_through_the_runner(tmp_path):
     (tmp_path / "f").write_text("x")
     subprocess.run(["git", "-C", str(tmp_path), "add", "f"], check=True)
     assert not c.close() and len(runner.closed) == 1
+
+
+def finished(w, id_="I7", caller="t9v"):
+    out = w.research(id_, done=True)
+    (out / "caller").write_text(caller + "\n")
+    return out
+
+
+def test_finished_round_without_coordinator_tells_the_starting_session_once(tmp_path):
+    w = World(tmp_path)
+    w.sessions = set()
+    out = finished(w)
+    w.callers["t9v"] = "sent"
+    lines = coord_round(w, None, tmp_path, ts(2026, 10, 3, 11, 0))
+    assert len(w.told) == 1 and w.told[0][0] == "t9v" and "I7" in w.told[0][1]
+    assert "I7 done, session t9v sent" in lines[-1]
+    coord_round(w, None, tmp_path, ts(2026, 10, 3, 11, 2))
+    assert len(w.told) == 1 and (out / "caller-told").exists()
+
+
+def test_finished_round_is_left_to_a_running_coordinator(tmp_path):
+    w = World(tmp_path)
+    finished(w)
+    w.callers["t9v"] = "sent"
+    w.agents["coordinator"] = "idle"
+    coord_round(w, None, tmp_path, ts(2026, 10, 3, 11, 0))
+    assert not w.told
+
+
+def test_finished_round_is_left_to_another_session_that_watches(tmp_path):
+    w = World(tmp_path)
+    finished(w)
+    w.callers["t9v"] = "sent"
+    now = ts(2026, 10, 3, 11, 0)
+    coord_round(w, None, tmp_path, now, beat=now - 60)
+    assert not w.told
+
+
+def test_busy_session_is_told_once_it_waits_for_input(tmp_path):
+    w = World(tmp_path)
+    w.sessions = set()
+    out = finished(w)
+    w.callers["t9v"] = "busy"
+    coord_round(w, None, tmp_path, ts(2026, 10, 3, 11, 0))
+    assert not w.told and not (out / "caller-told").exists()
+    w.callers["t9v"] = "sent"
+    coord_round(w, None, tmp_path, ts(2026, 10, 3, 11, 2))
+    assert len(w.told) == 1
+
+
+def test_a_session_that_is_gone_is_not_tried_again(tmp_path):
+    w = World(tmp_path)
+    w.sessions = set()
+    out = finished(w)
+    coord_round(w, None, tmp_path, ts(2026, 10, 3, 11, 0))
+    w.callers["t9v"] = "sent"
+    coord_round(w, None, tmp_path, ts(2026, 10, 3, 11, 2))
+    assert not w.told and "gone" in (out / "caller-told").read_text()
+
+
+def test_a_round_without_caller_tells_nobody(tmp_path):
+    w = World(tmp_path)
+    w.sessions = set()
+    w.research("I7", done=True)
+    w.callers["t9v"] = "sent"
+    coord_round(w, None, tmp_path, ts(2026, 10, 3, 11, 0))
+    assert not w.told
+
+
+def session(address, program, cwd, state="idle"):
+    return {"address": address, "state": "live", "status": {"app": "claude-code", "state": state},
+            "foreground": {"name": program, "cwd": cwd}}
+
+
+def test_hc_tells_only_an_idle_claude_session_in_the_project(tmp_path, monkeypatch):
+    root = tmp_path / "project"
+    root.mkdir()
+    calls = fake_hc(tmp_path, monkeypatch, [
+        session("t1", "claude", str(root)),
+        session("t2", "bash", str(root)),
+        session("t3", "claude", str(tmp_path)),
+        session("t4", "claude", str(root), state="working"),
+    ])
+    hc = guard.HcCli(Path(PROJECT))
+    assert hc.tell_session("t1", root, "round done") == "sent"
+    assert hc.tell_session("t2", root, "round done") == "gone"
+    assert hc.tell_session("t3", root, "round done") == "gone"
+    assert hc.tell_session("t4", root, "round done") == "busy"
+    assert hc.tell_session("t5", root, "round done") == "gone"
+    sent = [line for line in calls.read_text().splitlines() if line.startswith("send")]
+    assert sent == ["send t1 round done"]

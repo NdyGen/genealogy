@@ -33,7 +33,7 @@ load_runner
 PROMPT="Message from the coordinator about round $ID: $TEXT
 Do this in this worktree, commit, run 'lineage round finish' again and end with DONE $ID."
 
-rm -f "$OUTDIR/DONE"
+rm -f "$OUTDIR/DONE" "$OUTDIR/caller-told"
 if runner_prompt "$NAME" "$PROMPT" 2>/dev/null; then
   echo "$ID: told the running leader ($NAME)"
   exit 0

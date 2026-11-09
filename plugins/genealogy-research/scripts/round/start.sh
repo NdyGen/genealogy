@@ -110,6 +110,9 @@ PERSON=$(cd "$WT" && lineage person "$ID" | sed -n 1p | sed -E 's/ \[[A-Za-z0-9]
 OUTDIR="$WT/$OUT"
 mkdir -p "$OUTDIR"
 echo "$ACCOUNT" > "$OUTDIR/account"
+# The guard tells the starting session when the round is done and nobody coordinates (hc only).
+rm -f "$OUTDIR/caller-told"
+[ -z "${HC_TERMINAL_ID:-}" ] || echo "$HC_TERMINAL_ID" > "$OUTDIR/caller"
 echo "$MODEL" > "$OUTDIR/model"
 [ -z "$BRIEF" ] || echo "$BRIEF" > "$OUTDIR/brief"
 [ "$UPDATE" = 1 ] && now_iso > "$OUTDIR/update"
