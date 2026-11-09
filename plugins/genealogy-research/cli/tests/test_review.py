@@ -271,3 +271,24 @@ def test_place_or_patronymic_as_second_feature_is_reported():
     quiet = ("Burial 1749: (1) name, patronymic and residence are one feature; (2) the period: alive in 1749.\n"
              "Overlijden 1767: (1) weduwe van Claas; (2) woonplaats 't End.")
     assert review.name_counted_twice({"report": quiet}) == []
+
+
+def test_pronoun_mismatch_in_own_birth_note():
+    old = ged("0 @I1@ INDI\n1 SEX M")
+    new = ged(
+        "0 @I1@ INDI\n1 SEX M",
+        "0 @I2@ INDI\n1 SEX F\n1 BIRT\n2 DATE BET 1623 AND 1648\n2 NOTE Afgeleid. Zijn moeder was\n3 CONC  toen weduwe.",
+        "0 @I3@ INDI\n1 SEX M\n1 CHR\n2 NOTE Haar vader\n3 CONC  was schepen.",
+    )
+    assert review.pronoun_mismatch(old, new) == [("I2", "Zijn moeder"), ("I3", "Haar vader")]
+
+
+def test_pronoun_mismatch_ignores_other_notes_and_old_text():
+    note = "2 NOTE Zijn moeder was weduwe."
+    old = ged(f"0 @I1@ INDI\n1 SEX F\n1 BIRT\n{note}")
+    new = ged(
+        f"0 @I1@ INDI\n1 SEX F\n1 BIRT\n{note}\n1 RESI\n2 NOTE Zijn vader, haar schoonvader, woonde er.",
+        "0 @I2@ INDI\n1 SEX F\n1 NOTE Haar man; zijn moeder heette Jans.",
+        "0 @I3@ INDI\n1 SEX U\n1 BIRT\n2 NOTE Zijn moeder.",
+    )
+    assert review.pronoun_mismatch(old, new) == []

@@ -447,6 +447,39 @@ def off_scale(texts: dict[str, str]) -> list[str]:
     return found
 
 
+_OWN_EVENTS = ("BIRT", "CHR", "BAPM")
+_WRONG_PRONOUN = {
+    "F": re.compile(r"\b(?:Zijn|His)\s+(?:moeder|vader|ouders|mother|father|parents)\b"),
+    "M": re.compile(r"\b(?:Haar|Her)\s+(?:moeder|vader|ouders|mother|father|parents)\b"),
+}
+
+
+def _own_event_notes(lines: list[str]) -> str:
+    """NOTE text under the record's own birth and baptism, where the parents named are the person's."""
+    out, event = [], ""
+    for line in lines:
+        if line.startswith("1 "):
+            event = line.split(" ")[1]
+        elif event in _OWN_EVENTS:
+            out.append(line)
+    return _joined_notes(out)
+
+
+def pronoun_mismatch(old: str, new: str) -> list[tuple[str, str]]:
+    """A NOTE copied from a brother kept "Zijn moeder" at his sister."""
+    before = records(old)
+    found = []
+    for xref, lines in records(new).items():
+        sex = next((line[6:].strip() for line in lines if line.startswith("1 SEX ")), "")
+        if sex not in _WRONG_PRONOUN:
+            continue
+        old_text = _own_event_notes(before.get(xref, []))
+        for m in _WRONG_PRONOUN[sex].finditer(_own_event_notes(lines)):
+            if m.group(0) not in old_text:
+                found.append((xref, m.group(0)))
+    return found
+
+
 def new_lines(old: str, new: str) -> list[str]:
     existing = set(old.splitlines())
     return [r for r in new.splitlines() if r not in existing]
@@ -563,6 +596,8 @@ def check(
                 fam=fam,
             )
         )
+    for x, words in pronoun_mismatch(ged_old, ged_new):
+        u.warnings.append(t("{xref}: '{words}' in a birth or baptism NOTE does not match the sex", xref=x, words=words))
     for line in long_lines(ged_old, ged_new):
         u.errors.append(t(
                 "GEDCOM: new line of {length} characters (max {max}, split with CONC): {line}",
