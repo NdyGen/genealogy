@@ -204,7 +204,9 @@ def cmd_forum(args: argparse.Namespace) -> int:
         url = forum.post(draft, preview=args.preview)
         print(t("preview shown, not posted") if url is None else t("posted: {url}", url=url))
         return 0
-    found = forum.read_replies(forum.drafts(args.dir))
+    found, gone = forum.read_replies(forum.drafts(args.dir))
+    for draft in gone:
+        print(t("{name}: thread no longer exists ({thread})", name=draft.path.name, thread=draft.header["thread"]))
     for draft, blocks in found:
         print(
             t(
@@ -216,7 +218,7 @@ def cmd_forum(args: argparse.Namespace) -> int:
         )
         for block in blocks:
             print("  " + block.replace("\n", "\n  "))
-    if not found:
+    if not found and not gone:
         print(t("no new replies"))
     return 0
 

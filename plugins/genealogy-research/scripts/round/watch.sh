@@ -76,7 +76,7 @@ read_forum() {
   [ "$out" = "no new replies" ] || [ "$out" = "geen nieuwe reacties" ] && return 0
   git -C "$ROOT" add "$FORUM"
   git -C "$ROOT" commit -q -m "Forum: new reply stored (to process)" -- "$FORUM" || true
-  echo "$out" | grep -E '^[^ ].*(new repl|nieuwe reactie)' | sed 's#^#forum #'
+  echo "$out" | grep -E '^[^ ].*(new repl|nieuwe reactie|no longer exists|bestaat niet meer)' | sed 's#^#forum #'
 }
 
 # Prints "<account> <reset-epoch>" when the leader's or a helper's screen shows the usage-limit message.

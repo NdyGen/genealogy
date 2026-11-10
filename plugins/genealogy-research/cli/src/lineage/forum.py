@@ -130,7 +130,12 @@ def session() -> Iterator:
         raise BrowserError(t("Playwright is missing: uv sync")) from exc
     cfg = config()
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(executable_path=chromium())
+        # Cloudflare keeps an automated Chromium on "Even geduld..." after logging in.
+        browser = pw.chromium.launch(
+            executable_path=chromium(),
+            args=["--disable-blink-features=AutomationControlled"],
+            ignore_default_args=["--enable-automation"],
+        )
         try:
             context = browser.new_context(
                 storage_state=str(STATE) if STATE.exists() else None,
@@ -138,6 +143,7 @@ def session() -> Iterator:
                 locale="nl-NL",
                 viewport={"width": 1600, "height": 1400},
             )
+            context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             page = context.new_page()
             page.goto(f"{BASE}/forum/", wait_until="domcontentloaded", timeout=60000)
             page.wait_for_timeout(2000)
@@ -243,12 +249,13 @@ def post(draft: Draft, preview: bool = False) -> str | None:
     return url
 
 
-def read_replies(drafts: list[Draft]) -> list[tuple[Draft, list[str]]]:
-    """New replies per posted draft, appended to the draft file."""
+def read_replies(drafts: list[Draft]) -> tuple[list[tuple[Draft, list[str]]], list[Draft]]:
+    """New replies per posted draft, appended to the draft file, and the drafts whose thread is gone."""
     posted = [d for d in drafts if d.header["status"] == "posted" and d.header.get("thread")]
     if not posted:
-        return []
+        return [], []
     found = []
+    gone = []
     with session() as page:
         for draft in posted:
             messages = []
@@ -270,6 +277,9 @@ def read_replies(drafts: list[Draft]) -> list[tuple[Draft, list[str]]]:
                 if len(posts) < 10 or not page.query_selector("a[rel=next]"):
                     break
                 start += len(posts)
+            if not messages:
+                gone.append(draft)
+                continue
             new = messages[1 + draft.reply_count :]
             if new:
                 blocks = [f"### {head}\n\n{text}" for head, text in new]
@@ -277,7 +287,7 @@ def read_replies(drafts: list[Draft]) -> list[tuple[Draft, list[str]]]:
                 draft.header["replies"] = str(len(messages) - 1)
                 write_draft(draft)
                 found.append((draft, blocks))
-    return found
+    return found, gone
 
 
 def drafts(folder: Path | None = None) -> list[Draft]:

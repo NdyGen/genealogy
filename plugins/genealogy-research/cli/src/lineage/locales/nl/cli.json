@@ -13,6 +13,7 @@
   "install Graphviz (apt install graphviz) to render an SVG": "installeer Graphviz (apt install graphviz) om er een SVG van te maken",
   "{name}: {count} new repl(ies) ({thread})": "{name}: {count} nieuwe reactie(s) ({thread})",
   "no new replies": "geen nieuwe reacties",
+  "{name}: thread no longer exists ({thread})": "{name}: de draad bestaat niet meer ({thread})",
   "{total} recognitions since {since} (log: {log})": "{total} herkenningen sinds {since} (log: {log})",
   "{total} recognitions (log: {log})": "{total} herkenningen (log: {log})",
   "  {label}: {credits:g} (expires {expires})": "  {label}: {credits:g} (verloopt {expires})",
