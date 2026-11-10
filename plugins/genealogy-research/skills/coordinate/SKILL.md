@@ -210,6 +210,6 @@ Mail sparingly: do not spam institutions. Do not stockpile held drafts. Question
 
 Only if `project.md` says the project uses them:
 - **Gramps Web** (`lineage gramps sync`): run after merging a round, after a blog post, after (re)writing life stories and after updating the questions.
-- **Geneanet forum** (`lineage forum post|read`): only for what `project.md` allows; mail notices from the forum are filed separately by `lineage mail inbox`.
+- **Geneanet forum**: only for what `project.md` allows. Geneanet's terms forbid posting with a script: `lineage forum post <draft>` only prints the topic, text and attachments for the user to post by hand; the user then sets `status: posted` and `thread:` in the draft. `lineage forum read` reads replies; mail notices from the forum are filed separately by `lineage mail inbox`.
 - **Paternal-line notice** (`lineage paternal --notify`): after a merge, when the direct line got one generation older.
 - **Coordinates** (`lineage coordinates fill`): when `validate` reports places without a row.

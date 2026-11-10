@@ -10,7 +10,6 @@ and the message as body. After posting the header gets the thread link; replies 
 
 from __future__ import annotations
 
-import datetime as dt
 import os
 import re
 from collections.abc import Iterator
@@ -130,12 +129,7 @@ def session() -> Iterator:
         raise BrowserError(t("Playwright is missing: uv sync")) from exc
     cfg = config()
     with sync_playwright() as pw:
-        # Cloudflare keeps an automated Chromium on "Even geduld..." after logging in.
-        browser = pw.chromium.launch(
-            executable_path=chromium(),
-            args=["--disable-blink-features=AutomationControlled"],
-            ignore_default_args=["--enable-automation"],
-        )
+        browser = pw.chromium.launch(executable_path=chromium())
         try:
             context = browser.new_context(
                 storage_state=str(STATE) if STATE.exists() else None,
@@ -143,7 +137,6 @@ def session() -> Iterator:
                 locale="nl-NL",
                 viewport={"width": 1600, "height": 1400},
             )
-            context.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             page = context.new_page()
             page.goto(f"{BASE}/forum/", wait_until="domcontentloaded", timeout=60000)
             page.wait_for_timeout(2000)
@@ -174,19 +167,8 @@ def _log_in(page, cfg: dict[str, str]) -> None:
         raise ForumError(t("logging in to Geneanet failed"))
 
 
-def _topics(page, forum: int) -> dict[str, str]:
-    page.goto(f"{BASE}/forum/viewforum.php?f={forum}", wait_until="domcontentloaded", timeout=60000)
-    page.wait_for_timeout(2000)
-    found = {}
-    for a in page.query_selector_all("a.topictitle"):
-        topic = re.search(r"[?&]t=(\d+)", a.get_attribute("href") or "")
-        if topic:
-            found[(a.inner_text() or "").strip()] = f"{BASE}/forum/viewtopic.php?t={topic[1]}"
-    return found
-
-
-def post(draft: Draft, preview: bool = False) -> str | None:
-    """Post the draft as a new topic; returns the thread URL (None for a preview)."""
+def preview(draft: Draft) -> str:
+    """The topic as it is to be posted by hand: Geneanet's terms forbid posting with a script."""
     if draft.header["status"] != "draft" or draft.header.get("thread"):
         raise ForumError(
             t(
@@ -199,54 +181,22 @@ def post(draft: Draft, preview: bool = False) -> str | None:
         raise ForumError(t("crops not found: {crops}", crops=", ".join(missing)))
     subject = re.sub(r"\[([A-Za-z.]{1,8})\]", r"(\1)", draft.header["title"])
     forum = int(draft.header.get("forum-id", PALEOGRAPHY))
-    with session() as page:
-        if not preview and subject in _topics(page, forum):
-            raise ForumError(t("a topic '{subject}' already exists in the forum", subject=subject))
-        page.goto(
-            f"{BASE}/forum/posting.php?mode=post&f={forum}",
-            wait_until="domcontentloaded",
-            timeout=60000,
-        )
-        page.wait_for_timeout(2000)
-        page.fill("#subject", subject)
-        page.fill("textarea[name=message]", bbcode(draft.text))
-        if page.is_visible("#notify"):
-            page.check("#notify")
-        if draft.crops:
-            page.set_input_files("input[type=file]", [str(p) for p in draft.crops])
-            for _ in range(120):
-                page.wait_for_timeout(1000)
-                if page.locator("#file-list tr.attach-row[data-attach-id]").count() >= len(
-                    draft.crops
-                ):
-                    break
-            else:
-                raise ForumError(t("attachments not uploaded within two minutes"))
-        # phpBB refuses a form sent too quickly after opening; the post button itself is intercepted by a
-        # script, so the form is submitted with the button as submitter.
-        page.wait_for_timeout(5000)
-        button = "preview" if preview else "post"
-        with page.expect_navigation(timeout=60000):
-            page.evaluate(
-                "k => { const f = document.getElementById('postform');"
-                " f.requestSubmit(f.querySelector('input[name=' + k + ']')); }",
-                button,
-            )
-        page.wait_for_timeout(3000)
-        error = page.query_selector("#postform .error, .errorbox")
-        if error and (error.inner_text() or "").strip():
-            raise ForumError(t("forum refuses: {reason}", reason=error.inner_text().strip()[:300]))
-        if preview:
-            return None
-        url = _topics(page, forum).get(subject)
-    if not url:
-        raise ForumError(t("posted, but the topic is not in the list; check the forum yourself"))
-    draft.header["status"] = "posted"
-    draft.header["posted"] = dt.date.today().isoformat()
-    draft.header["thread"] = url
-    draft.header["replies"] = "0"
-    write_draft(draft)
-    return url
+    parts = [
+        t("Post by hand: {url}", url=f"{BASE}/forum/posting.php?mode=post&f={forum}"),
+        t("Subject: {subject}", subject=subject),
+        "",
+        bbcode(draft.text),
+    ]
+    if draft.crops:
+        parts += ["", t("Attachments:")] + [f"  {p}" for p in draft.crops]
+    parts += [
+        "",
+        t(
+            "Afterwards set status: posted, posted: <date> and thread: <url> in the header of {name}.",
+            name=draft.path.name,
+        ),
+    ]
+    return "\n".join(parts)
 
 
 def read_replies(drafts: list[Draft]) -> tuple[list[tuple[Draft, list[str]]], list[Draft]]:

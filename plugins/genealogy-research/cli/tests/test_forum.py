@@ -80,7 +80,20 @@ def test_posted_draft_is_not_posted_again(tmp_path: Path) -> None:
     path = tmp_path / "c.md"
     path.write_text(DRAFT.replace("status: draft", "status: posted"), encoding="utf-8")
     with pytest.raises(forum.ForumError, match="already posted"):
-        forum.post(forum.read_draft(path))
+        forum.preview(forum.read_draft(path))
+
+
+def test_preview_is_offline_text_to_post_by_hand(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    for crop in ("a.jpg", "b.jpg"):
+        (tmp_path / crop).write_bytes(b"")
+    path = tmp_path / "c.md"
+    path.write_text(DRAFT, encoding="utf-8")
+    draft = forum.read_draft(path)
+    text = forum.preview(draft)
+    assert f"posting.php?mode=post&f={forum.PALEOGRAPHY}" in text
+    assert forum.bbcode(draft.text) in text
+    assert "a.jpg" in text and "b.jpg" in text
 
 
 def test_dutch_header_keys_and_statuses_are_read_and_written_in_english(tmp_path: Path) -> None:
