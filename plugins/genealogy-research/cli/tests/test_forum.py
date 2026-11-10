@@ -80,7 +80,20 @@ def test_posted_draft_is_not_posted_again(tmp_path: Path) -> None:
     path = tmp_path / "c.md"
     path.write_text(DRAFT.replace("status: draft", "status: posted"), encoding="utf-8")
     with pytest.raises(forum.ForumError, match="already posted"):
-        forum.post(forum.read_draft(path))
+        forum.preview(forum.read_draft(path))
+
+
+def test_preview_is_offline_text_to_post_by_hand(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    for crop in ("a.jpg", "b.jpg"):
+        (tmp_path / crop).write_bytes(b"")
+    path = tmp_path / "c.md"
+    path.write_text(DRAFT, encoding="utf-8")
+    draft = forum.read_draft(path)
+    text = forum.preview(draft)
+    assert f"posting.php?mode=post&f={forum.PALEOGRAPHY}" in text
+    assert forum.bbcode(draft.text) in text
+    assert "a.jpg" in text and "b.jpg" in text
 
 
 def test_dutch_header_keys_and_statuses_are_read_and_written_in_english(tmp_path: Path) -> None:
@@ -95,14 +108,3 @@ def test_dutch_header_keys_and_statuses_are_read_and_written_in_english(tmp_path
     forum.write_draft(draft)
     written = path.read_text()
     assert "title: Northfield" in written and "titel:" not in written and "## Replies" in written
-
-
-def test_credentials_use_the_new_names_with_an_old_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg = tmp_path / "geneanet.env"
-    cfg.write_text("NDYGEN_GENEANET_GEBRUIKER=ndy\nNDYGEN_GENEANET_WACHTWOORD=pw\n")
-    monkeypatch.setenv("LINEAGE_GENEANET_CONFIG", str(cfg))
-    values = forum.config()
-    assert values["LINEAGE_GENEANET_USER"] == "ndy" and values["LINEAGE_GENEANET_PASSWORD"] == "pw"
-    cfg.write_text("")
-    with pytest.raises(forum.ForumError, match="LINEAGE_GENEANET_USER is missing"):
-        forum.config()

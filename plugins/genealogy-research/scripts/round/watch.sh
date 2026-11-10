@@ -9,13 +9,10 @@
 #                limit too (DR_AUTO_SWITCH=0 turns resuming off)
 #   mail         new mail in the assistant's mailbox (read every half hour, DR_MAIL_INTERVAL); the reply is
 #                already committed in <replies> and must be processed
-#   forum        new reply to a question on the Geneanet forum (read as soon as Geneanet mails a notification,
-#                otherwise every twelve hours, DR_FORUM_INTERVAL); the reply is already committed in the draft
-#                file in <forum> and must be processed
-#   forum-notice Geneanet mailed a notification (committed in <forum_notifications>); without a 'forum' line
-#                next to it reading the thread failed: read it yourself or via the user
+#   forum-notice Geneanet mailed a notification (committed in <forum_notifications>): the user reads the
+#                thread in a browser (Geneanet forbids reading or posting with a script)
 # Reports only what changed since the previous notice; a situation already reported does not hold the watcher.
-# Mail and forum are polled only when their credential file exists.
+# Mail is polled only when its credential file exists.
 # Usage: lineage round watch [interval-seconds, default 120]
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/runner.sh"
@@ -43,7 +40,6 @@ trap 'if [ "$(cat "$LOCK" 2>/dev/null)" = "$$" ]; then rm -f "$LOCK"; fi' EXIT
 # A restart must remember who was already quiet, or a leader waiting out a usage limit is reported again.
 previous_quiet=$(awk '$2 == "quiet" {print $1}' "$STATE")
 MAIL_STAMP="$COMMON/dr-mail.last"
-FORUM_STAMP="$COMMON/dr-forum.last"
 
 # Reads the assistant's mailbox at most every DR_MAIL_INTERVAL seconds; new replies are committed in main
 # right away, so no uncommitted file blocks start.sh or merge.sh.
@@ -58,25 +54,7 @@ read_mailbox() {
   [ "$out" = "no new mail" ] || [ "$out" = "geen nieuwe mail" ] && return 0
   git -C "$ROOT" add "$REPLIES" "$FORUM_NOTIF" 2>/dev/null || true
   git -C "$ROOT" commit -q -m "Mailbox: new mail stored (to process)" -- "$REPLIES" "$FORUM_NOTIF" 2>/dev/null || true
-  # A Geneanet notification means a reply on the forum: read the threads in this round instead of waiting.
-  if echo "$out" | grep -q "^$FORUM_NOTIF/"; then rm -f "$FORUM_STAMP"; fi
-  # The notification is reported itself too: reading the thread can fail (a Cloudflare check).
   echo "$out" | sed -e "s#^$REPLIES/#mail #" -e "s#^$FORUM_NOTIF/#forum-notice #"
-}
-
-# The forum threads: read right after a Geneanet notification mail, otherwise twice a day as a fallback.
-read_forum() {
-  local now last out
-  [ -n "$(credential_file geneanet)" ] || return 0
-  grep -Elq '^status: (posted|geplaatst)' "$ROOT/$FORUM"/*.md 2>/dev/null || return 0
-  now=$(date +%s); last=$(cat "$FORUM_STAMP" 2>/dev/null || echo 0)
-  [ $((now - last)) -ge "${DR_FORUM_INTERVAL:-43200}" ] || return 0
-  echo "$now" > "$FORUM_STAMP"
-  out=$(cd "$ROOT" && lineage forum read 2>>"$COMMON/dr-forum.log") || return 0
-  [ "$out" = "no new replies" ] || [ "$out" = "geen nieuwe reacties" ] && return 0
-  git -C "$ROOT" add "$FORUM"
-  git -C "$ROOT" commit -q -m "Forum: new reply stored (to process)" -- "$FORUM" || true
-  echo "$out" | grep -E '^[^ ].*(new repl|nieuwe reactie)' | sed 's#^#forum #'
 }
 
 # Prints "<account> <reset-epoch>" when the leader's or a helper's screen shows the usage-limit message.
@@ -172,8 +150,7 @@ PY
   new=$(comm -13 "$STATE" <(echo "$current") | sed '/^$/d')
   echo "$current" > "$STATE"
   mail_notices=$(read_mailbox || true)
-  forum_notices=$(read_forum || true)
-  new=$(printf '%s\n%s\n%s\n%s' "$limit_notices" "$mail_notices" "$forum_notices" "$new" | sed '/^$/d')
+  new=$(printf '%s\n%s\n%s' "$limit_notices" "$mail_notices" "$new" | sed '/^$/d')
   if [ -n "$new" ]; then
     echo "$new"
     exit 0

@@ -199,25 +199,7 @@ def _htr_model(value: str) -> int:
 
 
 def cmd_forum(args: argparse.Namespace) -> int:
-    if args.forum_command == "post":
-        draft = forum.read_draft(args.draft)
-        url = forum.post(draft, preview=args.preview)
-        print(t("preview shown, not posted") if url is None else t("posted: {url}", url=url))
-        return 0
-    found = forum.read_replies(forum.drafts(args.dir))
-    for draft, blocks in found:
-        print(
-            t(
-                "{name}: {count} new repl(ies) ({thread})",
-                name=draft.path.name,
-                count=len(blocks),
-                thread=draft.header["thread"],
-            )
-        )
-        for block in blocks:
-            print("  " + block.replace("\n", "\n  "))
-    if not found:
-        print(t("no new replies"))
+    print(forum.preview(forum.read_draft(args.draft)))
     return 0
 
 
@@ -1772,22 +1754,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     forum_parser = commands.add_parser(
         "forum",
-        help="read questions on the Geneanet forum (died before 1900): post a draft, read replies",
+        help="reading questions on the Geneanet forum (died before 1900), posted by hand",
     )
     forum_commands = forum_parser.add_subparsers(dest="forum_command", required=True)
     forum_post = forum_commands.add_parser(
-        "post", help="post a draft from the forum folder as a new topic"
+        "post",
+        help="show a draft from the forum folder ready to post by hand (Geneanet forbids posting with a script)",
     )
     forum_post.add_argument("draft", type=Path)
-    forum_post.add_argument(
-        "--preview", action="store_true", help="only show the preview, do not post"
-    )
+    forum_post.add_argument("--preview", action="store_true", help=argparse.SUPPRESS)
     forum_post.set_defaults(offline=cmd_forum)
-    forum_read = forum_commands.add_parser(
-        "read", help="fetch new replies and add them to the draft file"
-    )
-    forum_read.add_argument("--dir", type=Path, help="default: forum in lineage.toml")
-    forum_read.set_defaults(offline=cmd_forum)
     return parser
 
 
