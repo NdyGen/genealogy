@@ -21,7 +21,6 @@
   "{path}: '{key}' is missing in the header": "{path}: '{key}' ontbreekt in de kop",
   "{path}: unknown status {status!r}": "{path}: onbekende status {status!r}",
   "Playwright is missing: uv sync": "Playwright ontbreekt: uv sync",
-  "logging in to Geneanet failed": "inloggen op Geneanet mislukt",
   "{name}: already posted ({thread})": "{name}: al geplaatst ({thread})",
   "crops not found: {crops}": "uitsneden niet gevonden: {crops}",
   "no Gramps Web server: set [gramps] url in lineage.toml": "geen Gramps Web-server: stel [gramps] url in in lineage.toml",

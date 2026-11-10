@@ -108,14 +108,3 @@ def test_dutch_header_keys_and_statuses_are_read_and_written_in_english(tmp_path
     forum.write_draft(draft)
     written = path.read_text()
     assert "title: Northfield" in written and "titel:" not in written and "## Replies" in written
-
-
-def test_credentials_use_the_new_names_with_an_old_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    cfg = tmp_path / "geneanet.env"
-    cfg.write_text("NDYGEN_GENEANET_GEBRUIKER=ndy\nNDYGEN_GENEANET_WACHTWOORD=pw\n")
-    monkeypatch.setenv("LINEAGE_GENEANET_CONFIG", str(cfg))
-    values = forum.config()
-    assert values["LINEAGE_GENEANET_USER"] == "ndy" and values["LINEAGE_GENEANET_PASSWORD"] == "pw"
-    cfg.write_text("")
-    with pytest.raises(forum.ForumError, match="LINEAGE_GENEANET_USER is missing"):
-        forum.config()
