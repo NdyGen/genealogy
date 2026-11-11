@@ -96,5 +96,7 @@
   "{where}: 'proven' on a derived source (regest, index, catalogue): {sentence}": "{where}: 'bewezen' op een afgeleide bron (regest, index, catalogus): {sentence}",
   "{where}: place, patronymic or surname counted as a separate feature (name, patronymic and place are one): {sentence}": "{where}: plaats, patroniem of achternaam als apart kenmerk geteld (naam, patroniem en plaats zijn één kenmerk): {sentence}",
   "{xref}: '{words}' in a birth or baptism NOTE does not match the sex": "{xref}: '{words}' in een NOTE bij geboorte of doop past niet bij het geslacht",
-  "{xref}: new FAMC @{fam}@ without a SOUR under the link": "{xref}: nieuwe FAMC @{fam}@ zonder SOUR onder de koppeling"
+  "{xref}: new FAMC @{fam}@ without a SOUR under the link": "{xref}: nieuwe FAMC @{fam}@ zonder SOUR onder de koppeling",
+  "{xref}: new FAMC @{fam}@ with only QUAY 2 sources: proven (QUAY 3) or probable (case A: QUAY 1 and a decision of the user)?": "{xref}: nieuwe FAMC @{fam}@ met alleen bronnen op QUAY 2: bewezen (QUAY 3) of waarschijnlijk (geval A: QUAY 1 en een besluit van de gebruiker)?",
+  "{where}: date {date} lies after today": "{where}: datum {date} ligt na vandaag"
 }
