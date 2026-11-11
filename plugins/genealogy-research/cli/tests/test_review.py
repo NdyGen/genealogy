@@ -283,6 +283,20 @@ def test_place_or_patronymic_as_second_feature_is_reported():
     assert review.name_counted_twice({"report": quiet}) == []
 
 
+def test_new_link_on_quay_3_without_own_reading():
+    old = ged(*FAMILY[:2], *FAMILY[3:])
+    def linked(*cite):
+        return ged(*FAMILY[:2], "1 FAMC @F1@", "2 SOUR @S1@", "3 QUAY 3", *cite, *FAMILY[3:])
+    index = linked("3 PAGE Index, no 12")
+    assert review.unread_proven_links(old, index) == [("I1", "F1")]
+    assert review.unread_proven_links(old, linked("3 PAGE Akte 12, nagelezen door leider")) == []
+    assert review.unread_proven_links(old, linked("3 NOTE Zelf gelezen op de scan.")) == []
+    assert review.unread_proven_links(old, linked("3 NOTE Reread by the\n4 CONC  lead on the scan.")) == []
+    assert review.unread_proven_links(old, linked("3 PAGE Akte 12, gelezen door hulpagent")) == [("I1", "F1")]
+    assert review.unread_proven_links(index, index) == []
+    assert any("QUAY 3" in w for w in check(old, index).warnings)
+
+
 def test_pronoun_mismatch_in_own_birth_note():
     old = ged("0 @I1@ INDI\n1 SEX M")
     new = ged(

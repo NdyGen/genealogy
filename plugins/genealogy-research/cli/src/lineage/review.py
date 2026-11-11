@@ -484,6 +484,35 @@ def quay3_on_unread_citation(old: str, new: str) -> list[str]:
     return found
 
 
+_OWN_READING = re.compile(
+    r"nagelezen door (?:de )?leider|zelf (?:na)?gelezen|(?:re)?read by the lead", re.IGNORECASE
+)
+
+
+def _text_values(block: list[str]) -> str:
+    out = []
+    for line in block:
+        _, _, rest = line.partition(" ")
+        tag, _, value = rest.partition(" ")
+        out.append(value if tag == "CONC" else "\n" + value)
+    return "".join(out)
+
+
+def unread_proven_links(old: str, new: str) -> list[tuple[str, str]]:
+    """New FAMC links with a QUAY 3 citation while no citation under the link marks a reading by the leader
+    himself ("nagelezen door leider"). I1218001, I1224001 and I1221009 linked children as proven on an index
+    citation or a helper agent's reading; an index or a helper's reading is never the record of proven."""
+    before, after = records(old), records(new)
+    found = []
+    for xref, lines in after.items():
+        old_blocks = _famc_blocks(before.get(xref, []))
+        for fam, block in _famc_blocks(lines).items():
+            if (fam not in old_blocks and "3 QUAY 3" in block
+                    and not _OWN_READING.search(_text_values(block))):
+                found.append((xref, fam))
+    return found
+
+
 _DMY = re.compile(r"\b(\d{1,2})-(\d{1,2})-(\d{4})\b")
 
 
@@ -934,6 +963,12 @@ def check(
         u.warnings.append(t(
             "{xref}: new FAMC @{fam}@ with only QUAY 2 sources: proven (QUAY 3) or probable "
             "(case A: QUAY 1 and a decision of the user)?",
+            xref=x, fam=fam,
+        ))
+    for x, fam in unread_proven_links(ged_old, ged_new):
+        u.warnings.append(t(
+            "{xref}: new FAMC @{fam}@ with a QUAY 3 source, but no citation marks a reading by the leader "
+            "himself (an index or a helper agent's reading is not proven)",
             xref=x, fam=fam,
         ))
     for x, words in pronoun_mismatch(ged_old, ged_new):
