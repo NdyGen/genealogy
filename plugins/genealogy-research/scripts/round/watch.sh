@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # For the coordinator, in the background: waits until something needs doing in a running round and reports it.
-#   done         <output>/DONE exists (`lineage round finish` ran): review and merge
+#   done         <output>/DONE exists (`lineage round finish` ran): review and merge; with the time of the finish,
+#                so a finish after `round tell` is reported again
 #   blocked      the leader waits on a permission prompt
 #   quiet        the leader is idle without running helpers, twice in a row (usage limit, stuck)
 #   no-agent     no leader runs and the round is not done
@@ -115,8 +116,11 @@ for wt in sorted((root / ".worktrees").glob("dr-*")):
     leader = agents.get(f"dr-{idl}")
     helpers = [n for n in agents if n.startswith(f"{idl}-")]
     out = [wt / os.environ["OUT"], wt / "uitvoer"]
-    if any((o / n).exists() for o in out for n in ("DONE", "KLAAR")):
-        print(f"{id_} done")
+    done = next((o / n for o in out for n in ("DONE", "KLAAR") if (o / n).exists()), None)
+    if done:
+        # `round tell` removes DONE and the lead's next finish writes a new stamp: that makes the second finish
+        # a new notice, also when the watcher was restarted only after the lead had finished again.
+        print(f"{id_} done {done.read_text().strip() or int(done.stat().st_mtime)}")
     elif leader is None:
         print(f"{id_} no-agent")
     elif leader == "blocked":
