@@ -37,9 +37,13 @@ if [ "$mode" = cron ]; then
   declare -F runner_cron_env >/dev/null || die "the $RUNNER runner cannot run the guard from cron (hc can)"
   command -v crontab >/dev/null || die "crontab is not installed"
   command -v flock >/dev/null || die "flock is not installed"
-  # cron starts with a bare PATH; the guard needs hc, uv, claude and git, and passes PATH on to the rounds.
-  path_dirs=$(for c in hc uv claude git python3; do d=$(command -v "$c") && dirname "$d"; done | awk '!seen[$0]++' | paste -sd:)
-  envs="PATH=$path_dirs:/usr/bin:/bin"
+  # cron starts with a bare PATH, and the guard passes its PATH on to the rounds, whose hooks (user settings,
+  # other plugins) may need any program of the user's shell. The full PATH goes in a file: it can be longer
+  # than a crontab line allows.
+  path_dirs=$({ for c in hc uv claude git python3; do d=$(command -v "$c") && dirname "$d"; done
+                tr : '\n' <<<"$PATH"; printf '%s\n' /usr/bin /bin; } | awk 'NF && !seen[$0]++' | paste -sd:)
+  echo "$path_dirs" > "$COMMON/dr-guard.path"
+  envs="PATH=\"\$(cat '$COMMON/dr-guard.path')\""
   while IFS= read -r l; do envs+=" $l"; done < <(runner_cron_env)
   # flock: a pass that resumes a round can outlast two minutes.
   line="*/2 * * * * cd '$MAIN' && $envs flock -n '$COMMON/dr-guard.lock' '$PLUGIN_ROOT/bin/lineage' guard --once --coordinator >/dev/null 2>>'$COMMON/dr-guard.log' $TAG"
