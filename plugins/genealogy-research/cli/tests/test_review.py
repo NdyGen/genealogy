@@ -126,6 +126,16 @@ def test_new_link_with_derived_identity_without_quay_1():
     assert review.derived_links(old, event) == []
 
 
+def test_new_link_without_source():
+    old = ged("0 @I1@ INDI", "1 NAME John /Faber/", "0 @F1@ FAM")
+    bare = ged("0 @I1@ INDI", "1 NAME John /Faber/", "1 FAMC @F1@",
+               "1 NOTE Parents from the burial record S1.", "0 @F1@ FAM", "1 CHIL @I1@")
+    sourced = bare.replace("1 FAMC @F1@", "1 FAMC @F1@\n2 SOUR @S1@\n3 QUAY 3")
+    assert review.unsourced_links(old, bare) == [("I1", "F1")]
+    assert review.unsourced_links(old, sourced) == []
+    assert review.unsourced_links(bare, bare) == []
+
+
 def test_removed_program_line():
     old = ged("0 @I1@ INDI", "1 _UPD 12 MAY 2021", "1 NAME John /Faber/")
     new = ged("0 @I1@ INDI", "1 NAME John /Faber/", "1 NOTE Rewritten.")

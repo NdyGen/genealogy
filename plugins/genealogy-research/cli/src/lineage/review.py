@@ -275,6 +275,19 @@ def derived_links(old: str, new: str) -> list[tuple[str, str]]:
     return found
 
 
+def unsourced_links(old: str, new: str) -> list[tuple[str, str]]:
+    """New FAMC links without a SOUR under the link: the record that carries the link then only stands in a
+    NOTE, and verify cannot check it (I1171001)."""
+    before, after = records(old), records(new)
+    found = []
+    for xref, lines in after.items():
+        old_blocks = _famc_blocks(before.get(xref, []))
+        for fam, block in _famc_blocks(lines).items():
+            if fam not in old_blocks and not any(line.startswith("2 SOUR") for line in block):
+                found.append((xref, fam))
+    return found
+
+
 def _grades(text: str) -> set[str]:
     return {_GRADES[w.lower()] for w in _GRADE.findall(_NOT_A_GRADE.sub(" ", text))}
 
@@ -596,6 +609,8 @@ def check(
                 fam=fam,
             )
         )
+    for x, fam in unsourced_links(ged_old, ged_new):
+        u.warnings.append(t("{xref}: new FAMC @{fam}@ without a SOUR under the link", xref=x, fam=fam))
     for x, words in pronoun_mismatch(ged_old, ged_new):
         u.warnings.append(t("{xref}: '{words}' in a birth or baptism NOTE does not match the sex", xref=x, words=words))
     for line in long_lines(ged_old, ged_new):
