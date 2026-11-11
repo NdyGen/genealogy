@@ -288,6 +288,39 @@ def unsourced_links(old: str, new: str) -> list[tuple[str, str]]:
     return found
 
 
+def unmarked_links(old: str, new: str) -> list[tuple[str, str]]:
+    """New FAMC links whose sources are all QUAY 2: neither proven (QUAY 3) nor marked as a probable link
+    (QUAY 1 with a decision of the user). I1192001 linked a daughter so, with "QUAY 2" in the report where a
+    word of the scale belonged."""
+    before, after = records(old), records(new)
+    found = []
+    for xref, lines in after.items():
+        old_blocks = _famc_blocks(before.get(xref, []))
+        for fam, block in _famc_blocks(lines).items():
+            quays = {line for line in block if line.startswith("3 QUAY ")}
+            if fam not in old_blocks and quays == {"3 QUAY 2"}:
+                found.append((xref, fam))
+    return found
+
+
+_DMY = re.compile(r"\b(\d{1,2})-(\d{1,2})-(\d{4})\b")
+
+
+def future_dates(texts: dict[str, str], today: dt.date) -> list[str]:
+    """Dates after today in new text: a reading dated tomorrow (I501817, "12-11-2026" on 11-11) is a typo
+    that a reader takes for a later check."""
+    found = []
+    for where, text in texts.items():
+        for m in _DMY.finditer(text):
+            try:
+                day = dt.date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+            except ValueError:
+                continue
+            if day > today:
+                found.append(t("{where}: date {date} lies after today", where=where, date=m.group(0)))
+    return found
+
+
 def _grades(text: str) -> set[str]:
     return {_GRADES[w.lower()] for w in _GRADE.findall(_NOT_A_GRADE.sub(" ", text))}
 
@@ -552,6 +585,7 @@ def check(
     story: str = "",
     questions_new: str = "",
     questions_old: str = "",
+    today: dt.date | None = None,
 ) -> Outcome:
     """`report_new` is only the text this branch added to the report, `report_full` the whole report,
     `questions_new` the lines it added to the open questions, `questions_old` those questions before."""
@@ -611,6 +645,12 @@ def check(
         )
     for x, fam in unsourced_links(ged_old, ged_new):
         u.warnings.append(t("{xref}: new FAMC @{fam}@ without a SOUR under the link", xref=x, fam=fam))
+    for x, fam in unmarked_links(ged_old, ged_new):
+        u.warnings.append(t(
+            "{xref}: new FAMC @{fam}@ with only QUAY 2 sources: proven (QUAY 3) or probable "
+            "(case A: QUAY 1 and a decision of the user)?",
+            xref=x, fam=fam,
+        ))
     for x, words in pronoun_mismatch(ged_old, ged_new):
         u.warnings.append(t("{xref}: '{words}' in a birth or baptism NOTE does not match the sex", xref=x, words=words))
     for line in long_lines(ged_old, ged_new):
@@ -625,6 +665,9 @@ def check(
     u.warnings.extend(off_scale({t("report"): report_new, "GEDCOM": new_notes}))
     u.warnings.extend(proven_on_derived({t("report"): report_new, "GEDCOM": new_notes, t("life story"): story}))
     u.warnings.extend(name_counted_twice({t("report"): report_new, "GEDCOM": new_notes}))
+    u.warnings.extend(future_dates(
+        {t("report"): report_new, "GEDCOM": new_notes, t("open questions"): questions_new}, today or dt.date.today(),
+    ))
     u.warnings.extend(_story_warnings(report_full, story))
     return u
 

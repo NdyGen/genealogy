@@ -302,3 +302,27 @@ def test_pronoun_mismatch_ignores_other_notes_and_old_text():
         "0 @I3@ INDI\n1 SEX U\n1 BIRT\n2 NOTE Zijn moeder.",
     )
     assert review.pronoun_mismatch(old, new) == []
+
+
+def test_new_link_on_quay_2_only():
+    old = ged(*FAMILY[:2], *FAMILY[3:])
+    def linked(quays):
+        lines = ["1 FAMC @F1@"]
+        for q in quays:
+            lines += ["2 SOUR @S1@", f"3 QUAY {q}"]
+        return ged(*FAMILY[:2], *lines, *FAMILY[3:])
+    assert review.unmarked_links(old, linked([2])) == [("I1", "F1")]
+    assert review.unmarked_links(old, linked([2, 2])) == [("I1", "F1")]
+    assert review.unmarked_links(old, linked([2, 3])) == []
+    assert review.unmarked_links(old, linked([1])) == []
+    assert review.unmarked_links(linked([2]), linked([2])) == []
+    assert any("QUAY 2" in w for w in check(old, linked([2])).warnings)
+
+
+def test_date_after_today():
+    today = dt.date(2026, 11, 11)
+    texts = {"report": "read on 12-11-2026; baptised 3-4-1650; reread 11-11-2026; 31-2-2027"}
+    assert review.future_dates(texts, today) == ["report: date 12-11-2026 lies after today"]
+    report = "Round on personal. Transkribus recognitions in this round: 0. Reread 12-11-2026."
+    tree = ged(*FAMILY)
+    assert any("12-11-2026" in w for w in check(tree, tree, report_new=report, today=today).warnings)
