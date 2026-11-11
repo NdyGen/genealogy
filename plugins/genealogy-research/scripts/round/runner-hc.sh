@@ -44,7 +44,7 @@ print("gone" if t.get("state") == "finished" else {None: "working", "error": "id
 
 # The herdr.space label of the terminal this runs in; outside a terminal (the guard from cron) DR_HC_SPACE.
 # A space the app no longer has (removed or reorganised since start-guard --cron) would hide the new tab, so
-# then it takes the space where the app shows a live terminal of this project, or leaves the choice to the app.
+# then it takes the space where the app shows a live terminal of this project, else the app's first space.
 # Without herdr.tab the app opens a new tab.
 _hc_placement() {
   local wanted=${DR_HC_SPACE:-} doc project
@@ -73,7 +73,7 @@ def terminals(node):
 
 if spaces and wanted not in {sp.get("id") for sp in spaces}:
     wanted = next((sp["id"] for sp in spaces for tab in sp.get("tabs", [])
-                   if project & set(terminals(tab.get("root", {})))), "")
+                   if project & set(terminals(tab.get("root", {})))), spaces[0].get("id", ""))
 if wanted:
     print("herdr.space=" + wanted)' "$wanted" "$doc" "$project" || true
 }

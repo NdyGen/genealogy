@@ -296,6 +296,24 @@ def test_placement_from_cron_leaves_a_space_the_app_no_longer_has(core):
     assert r.stdout.split() == ["herdr.space=S3", "-", "herdr.space=S2"]
 
 
+def test_placement_falls_back_to_the_apps_first_space_when_no_project_terminal_is_in_a_tab(core):
+    """The app dropped the space the guard was set up in, and the coordinator it started has no space either:
+    without a fallback every new round stays out of sight."""
+    env, base = core
+    req = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "doc.set", "params": {
+        "name": "herdr-app", "version": 0, "value": {"spaces": [
+            {"id": "S2", "tabs": [{"id": "T9", "root": {"type": "row", "children": []}}]},
+            {"id": "S3", "tabs": []}]}}})
+    subprocess.run(["hc", "connect"], input=req + "\n", env=env, capture_output=True, text=True, check=True)
+    caller = json.loads(hc(env, "run", "--bg", "--name", "coordinator", "--no-parent", "sleep", "300").stdout)["address"]
+    r = runner(env, base, "DR_HC_SPACE=S1 _hc_placement")
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.split() == ["herdr.space=S2"]
+    r = runner(env, base, "_hc_placement", caller)
+    assert r.returncode == 0, r.stderr
+    assert r.stdout.split() == ["herdr.space=S2"]
+
+
 def test_stop_guard_closes_its_terminal(core):
     env, base = core
     r = runner(env, base, """
