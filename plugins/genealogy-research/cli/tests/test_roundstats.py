@@ -312,6 +312,21 @@ def test_the_leader_session_is_the_last_leader_not_a_helper(repo, tmp_path):
     assert roundstats.leader_session(repo / ".worktrees" / "dr-I9", costs.account_dirs()) is None
 
 
+def test_an_account_without_config_dir_is_home_claude_not_the_callers_config_dir(tmp_path, monkeypatch):
+    cfg = tmp_path / "cfg"
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "lineage.toml").write_text(f'[accounts.work]\n\n[accounts.personal]\nconfig_dir = "{cfg}"\n', "utf-8")
+    settings.use(settings.load(root))
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(cfg))
+    assert costs.account_dirs() == {"work": tmp_path / "home" / ".claude", "personal": cfg}
+    worktree = root / ".worktrees" / "dr-I1"
+    write_session(transcripts.project_dir(cfg, worktree) / "lead.jsonl",
+                  user(1, "Use the deep-research skill for person I1."), assistant(5, "a"))
+    assert roundstats.leader_session(worktree, costs.account_dirs()) == ("lead", "personal")
+
+
 def test_older_command_and_prompt_names_are_recognised(tmp_path):
     path = write_session(tmp_path / "s.jsonl", user(0, "Lees de opdracht in x.opdracht.md"),
                          assistant(1, "a", blocks=[bash("uv run ndygen review I5")]),

@@ -89,12 +89,13 @@ def table(config: settings.Config | None = None) -> PriceTable:
 
 def account_dirs(config: settings.Config | None = None) -> dict[str, Path]:
     config = config or settings.current()
-    accounts = config.accounts or {"default": {}}
+    if not config.accounts:
+        return {"default": transcripts.default_config_dir()}
+    # The runners start an account without config_dir with CLAUDE_CONFIG_DIR unset, so its transcripts are in
+    # ~/.claude, not in the CLAUDE_CONFIG_DIR of whichever account this command happens to run under.
     return {
-        name: Path(values["config_dir"]).expanduser()
-        if values.get("config_dir")
-        else transcripts.default_config_dir()
-        for name, values in accounts.items()
+        name: Path(values["config_dir"]).expanduser() if values.get("config_dir") else Path.home() / ".claude"
+        for name, values in config.accounts.items()
     }
 
 
