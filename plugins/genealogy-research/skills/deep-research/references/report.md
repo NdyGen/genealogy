@@ -14,7 +14,7 @@ The report's section headings are free text for people; only the items below are
 | report and life story | "helper agent" (Dutch "hulpagent") with "proven" (Dutch "bewezen") in the same paragraph, without "not" | warned: a helper's reading is never proven |
 | report, NOTE, life story | words off the scale: "demonstrable", "almost certain", "nearly certain", "undoubtedly", "without doubt" (Dutch: aantoonbaar, vrijwel zeker, bijna zeker, ongetwijfeld, zonder twijfel) | warned |
 | report, last line | `Blog-worthy: yes/no` (Dutch: `Blogwaardig: ja/nee`) | read by the coordinator |
-| report | a section "For the coordinator" (Dutch: "Voor de coördinator") | read by the coordinator: corrections elsewhere, uncertain decisive readings |
+| report | a section "For the coordinator" (Dutch: "Voor de coördinator") | read by the coordinator: corrections elsewhere, uncertain decisive readings, routes to proof |
 | log | heading `## <date> · <ID> · <name> (deep research)` | `lineage round finish` looks for the ID in a new `## ` heading |
 | tree NOTE | `Deep research <dd-mm-yyyy>: <report>` | added by `lineage round merge`; never by you. Your own findings notes begin `Deep research <ID> (...)` |
 | life story | first line `# <title>`; an optional italic kinship line right after it; a `---` line before the sources tail; a tail line that starts with `**Background` (Dutch `**Achtergrond`) | read by the book builder and the Gramps Web sync |
@@ -142,7 +142,7 @@ What was not found, and where the next step lies (archive, inventory, or which s
 |---|---|---|---|---|
 
 ## For the coordinator
-Corrections whose old value stands elsewhere, uncertain decisive readings (file names of the scan and crop, which letters are uncertain), a blog proposal.
+Corrections whose old value stands elsewhere, uncertain decisive readings (file names of the scan and crop, which letters are uncertain), routes from probable to proven that the round did not walk (statement, record or scan, why it would decide), a blog proposal.
 
 Blog-worthy: yes/no, with one sentence why.
 ```
