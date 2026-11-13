@@ -98,5 +98,12 @@
   "{xref}: '{words}' in a birth or baptism NOTE does not match the sex": "{xref}: '{words}' in een NOTE bij geboorte of doop past niet bij het geslacht",
   "{xref}: new FAMC @{fam}@ without a SOUR under the link": "{xref}: nieuwe FAMC @{fam}@ zonder SOUR onder de koppeling",
   "{xref}: new FAMC @{fam}@ with only QUAY 2 sources: proven (QUAY 3) or probable (case A: QUAY 1 and a decision of the user)?": "{xref}: nieuwe FAMC @{fam}@ met alleen bronnen op QUAY 2: bewezen (QUAY 3) of waarschijnlijk (geval A: QUAY 1 en een besluit van de gebruiker)?",
-  "{where}: date {date} lies after today": "{where}: datum {date} ligt na vandaag"
+  "{xref}: '1 {tag} Y' with a DATE under it: write '1 {tag}' without the Y": "{xref}: '1 {tag} Y' met een DATE eronder: schrijf '1 {tag}' zonder Y",
+  "{xref}: QUAY 3 on a helper agent's reading or the index alone: proven needs the scan read by the lead; read the scan, or set QUAY 2 and write 'according to the index'": "{xref}: QUAY 3 op een lezing van een hulpagent of de index: bewezen vraagt de scan zelf gelezen; lees de scan of zet QUAY 2 en schrijf 'volgens de index'",
+  "{where}: date {date} lies after today": "{where}: datum {date} ligt na vandaag",
+  "{where}: '{words}' reads as a fact; write what was searched and not found: {sentence}": "{where}: '{words}' leest als feit; schrijf wat doorzocht is en niet gevonden: {sentence}",
+  "{xref}: NOTE sentence gone from the record and not named in the report (Removed): {sentence}": "{xref}: NOTE-zin weggevallen uit het record en niet genoemd in het rapport (Verwijderd): {sentence}",
+  "life story: sentence dropped by the update round (only add what the tree gained): {sentence}": "levensverhaal: zin weggevallen in de bijwerkronde (alleen toevoegen wat de stamboom erbij kreeg): {sentence}",
+  "gap of {days} days between baptisms of {a} ({date_a}) and {b} ({date_b}) in {fam}: two mothers, a wrong reading or a wrongly linked child?": "tussenpoos van {days} dagen tussen dopen van {a} ({date_a}) en {b} ({date_b}) in {fam}: twee moeders, een verkeerde lezing of een verkeerd gekoppeld kind?",
+  "life story title names {year} without a birth, baptism, death or burial date with that year in the tree": "titel van het levensverhaal noemt {year} zonder geboorte-, doop-, overlijdens- of begraafdatum met dat jaar in de boom"
 }
