@@ -326,3 +326,194 @@ def test_date_after_today():
     report = "Round on personal. Transkribus recognitions in this round: 0. Reread 12-11-2026."
     tree = ged(*FAMILY)
     assert any("12-11-2026" in w for w in check(tree, tree, report_new=report, today=today).warnings)
+
+
+def test_absence_written_as_fact():
+    texts = {
+        "report": "Na 1765 zwijgen de bronnen over Lucas: geen begrafenis, geen akte bij schepenen. "
+        "Geen begrafenis gevonden in het begraafboek van Made 1782-1810. "
+        'Zij werd begraven op 7-9-1748, "als huisvrouw; laat geen kinderen na" (index).',
+    }
+    found = review.absence_as_fact(texts)
+    assert len(found) == 1
+    assert "'geen begrafenis'" in found[0]
+
+
+def test_dropped_sentences_in_update_round():
+    old = (
+        "# Kop\n\nZij werd in Dorp geboren, op de dag van de jaarmarkt, een mooi verhaal.\n"
+        "Haar zoon Pieter woont in Dorp met zijn gezin en kinderen.\n"
+    )
+    new = (
+        "# Kop\n\nHaar zoon Pieter woont in Dorp met zijn gezin en kinderen, zegt de akte.\n"
+        "Op 3 mei 1851 verkocht hij het huis aan de markt.\n"
+    )
+    assert review.dropped_sentences(old, new) == [
+        "Zij werd in Dorp geboren, op de dag van de jaarmarkt, een mooi verhaal."
+    ]
+
+
+def _events_tree(*lines):
+    return ged(*FAMILY[:2], *lines, *FAMILY[3:])
+
+
+def test_y_flag_with_date_on_new_event():
+    old = _events_tree()
+    assert review.flag_with_date(old, _events_tree("1 DEAT Y", "2 DATE 3 MAR 1850")) == [("I1", "DEAT")]
+    assert review.flag_with_date(old, _events_tree("1 BURI Y", "2 PLAC Dorp", "2 DATE 1850")) == [("I1", "BURI")]
+    assert any("1 DEAT Y" in w for w in check(old, _events_tree("1 DEAT Y", "2 DATE 1850")).warnings)
+
+
+def test_y_flag_without_date_or_date_without_flag_is_fine():
+    old = _events_tree()
+    assert review.flag_with_date(old, _events_tree("1 DEAT Y")) == []
+    assert review.flag_with_date(old, _events_tree("1 DEAT", "2 DATE 3 MAR 1850")) == []
+    assert review.flag_with_date(old, _events_tree("1 DEAT Y", "2 PLAC Dorp", "1 BIRT", "2 DATE 1800")) == []
+
+
+def test_y_flag_with_date_ignores_untouched_events():
+    tree = _events_tree("1 DEAT Y", "2 DATE 1850")
+    assert review.flag_with_date(tree, tree) == []
+
+
+def _baptism(quay, *notes):
+    return _events_tree("1 CHR", "2 DATE 1800", "2 SOUR @S1@", "3 PAGE inv. 1", f"3 QUAY {quay}", *notes)
+
+
+def test_quay_3_on_helper_or_index_reading():
+    old = _events_tree()
+    for note in (
+        "2 NOTE Lezing hulpagent, scan niet nagekeken.", "2 NOTE Lezing van de hulpagent.", "2 NOTE Alleen index.",
+        "2 NOTE Alleen de index geraadpleegd.", "2 NOTE Scan niet gelezen.", "2 NOTE Helper reading only.",
+        "2 NOTE Index only.", "2 NOTE Scan not read.",
+    ):
+        assert review.quay3_on_unread_citation(old, _baptism(3, note)) == ["I1"], note
+    assert any("QUAY 3" in w for w in check(old, _baptism(3, "2 NOTE Alleen index.")).warnings)
+
+
+def test_quay_3_on_helper_reading_in_citation_note_and_famc():
+    old = _events_tree()
+    deeper = _events_tree("1 CHR", "2 SOUR @S1@", "3 QUAY 3", "3 NOTE Lezing hulpagent.")
+    assert review.quay3_on_unread_citation(old, deeper) == ["I1"]
+    old_famc = ged(*FAMILY[:2], *FAMILY[3:])
+    famc = ged(*FAMILY[:2], "1 FAMC @F1@", "2 NOTE Alleen de index.", "2 SOUR @S1@", "3 QUAY 3", *FAMILY[3:])
+    assert review.quay3_on_unread_citation(old_famc, famc) == ["I1"]
+
+
+def test_quay_3_with_reread_marker_or_other_quay_or_old_citation_is_fine():
+    old = _events_tree()
+    assert review.quay3_on_unread_citation(old, _baptism(3, "2 NOTE Lezing hulpagent, nagelezen door leider.")) == []
+    assert review.quay3_on_unread_citation(old, _baptism(3, "2 NOTE Index only, reread by the lead.")) == []
+    assert review.quay3_on_unread_citation(old, _baptism(3, "2 NOTE Alleen index, zelf gelezen.")) == []
+    assert review.quay3_on_unread_citation(old, _baptism(2, "2 NOTE Alleen index.")) == []
+    assert review.quay3_on_unread_citation(old, _baptism(3, "2 NOTE Akte gelezen.")) == []
+    stale = _baptism(3, "2 NOTE Alleen index.")
+    assert review.quay3_on_unread_citation(stale, stale) == []
+
+
+def test_new_checks_skip_blank_lines():
+    old = _events_tree("", "1 RESI")
+    new = _events_tree("", "1 CHR", "", "2 SOUR @S1@", "3 QUAY 3", "", "2 NOTE Alleen index.", "1 DEAT Y", "", "2 DATE 1850")
+    assert review.quay3_on_unread_citation(old, new) == ["I1"]
+    assert review.flag_with_date(old, new) == [("I1", "DEAT")]
+
+
+def _note_tree(*lines):
+    return ged(*FAMILY[:2], *lines, *FAMILY[3:])
+
+
+OLD_DIVISION = "De deling van 1776 verdeelde de nalatenschap tussen de zeven kinderen van Jan en Maria."
+OLD_SOUNDINGS = "In 1755 tot 1758 werd het huis driemaal gepeild door de schepenen van de stad."
+
+
+def test_note_sentence_dropped_without_a_word_in_the_report():
+    old = _note_tree("1 NOTE " + OLD_DIVISION, "1 NOTE " + OLD_SOUNDINGS)
+    new = _note_tree("1 NOTE " + OLD_SOUNDINGS, "1 NOTE Nieuwe tekst over het gezin en de akte van 1790.")
+    assert review.dropped_note_sentences(old, new) == [("I1", OLD_DIVISION)]
+    assert any("NOTE sentence gone" in w for w in check(old, new, report_full="## Removed\nNothing.").warnings)
+
+
+def test_note_sentence_moved_to_another_note_or_named_in_the_report_is_quiet():
+    old = _note_tree("1 NOTE " + OLD_DIVISION)
+    moved = _note_tree("1 NOTE Iets anders.", "1 EVEN", "2 NOTE " + OLD_DIVISION + " Plus een zin erbij.")
+    assert review.dropped_note_sentences(old, moved) == []
+    gone = _note_tree("1 NOTE Iets heel anders over een akte van 1790 bij de notaris.")
+    assert review.dropped_note_sentences(old, gone, "## Removed\n" + OLD_DIVISION) == []
+    assert review.dropped_note_sentences(old, gone) != []
+
+
+def test_note_sentence_with_conc_and_short_sentences():
+    old = _note_tree("1 NOTE De deling van 1776 verdeelde de nalatenschap tus", "2 CONC sen de zeven kinderen van Jan en Maria.",
+                     "2 CONT Kort.")
+    new = _note_tree("1 NOTE " + OLD_DIVISION)
+    assert review.dropped_note_sentences(old, new) == []
+    assert review.dropped_note_sentences(old, _note_tree("1 NOTE Iets anders.")) == [("I1", OLD_DIVISION)]
+
+
+def _baptisms(*dates, fam_line="1 NOTE x"):
+    lines = ["0 @F7@ FAM", "1 HUSB @I2@", fam_line]
+    people = []
+    for n, date in enumerate(dates, 70):
+        lines.append(f"1 CHIL @I{n}@")
+        people += [f"0 @I{n}@ INDI", f"1 NAME Kind{n} /Faber/", "1 FAMC @F7@", "1 CHR", f"2 DATE {date}"]
+    return ged(*FAMILY[3:6], *people, *lines)
+
+
+def test_close_baptisms_in_one_family_are_reported():
+    old = ged(*FAMILY[3:6])
+    new = _baptisms("26 SEP 1723", "9 FEB 1724")
+    found = review.close_christenings(old, new)
+    assert [(f[0], f[2], f[4], f[5]) for f in found] == [("F7", "26 SEP 1723", "9 FEB 1724", 136)]
+    warnings = check(old, new).warnings
+    assert any("gap of 136 days between baptisms of Kind70 Faber (I70) (26 SEP 1723)" in w for w in warnings)
+
+
+def test_twins_far_apart_and_inexact_dates_are_quiet():
+    old = ged(*FAMILY[3:6])
+    assert review.close_christenings(old, _baptisms("5 MAR 1700", "5 MAR 1700")) == []
+    assert review.close_christenings(old, _baptisms("5 MAR 1700", "20 DEC 1700")) == []
+    assert review.close_christenings(old, _baptisms("5 MAR 1700", "ABT 1700", "BEF 1 JUN 1700", "1700")) == []
+
+
+def test_close_baptisms_in_an_untouched_family_are_quiet():
+    same = _baptisms("26 SEP 1723", "9 FEB 1724")
+    assert review.close_christenings(same, same) == []
+    assert review.close_christenings(same, _baptisms("26 SEP 1723", "9 FEB 1724", fam_line="1 NOTE y"))
+
+
+def test_birth_is_used_when_there_is_no_baptism():
+    old = ged(*FAMILY[3:6])
+    lines = ["0 @I70@ INDI", "1 BIRT", "2 DATE 1 JAN 1700", "0 @I71@ INDI", "1 BIRT", "2 DATE 1 JUN 1700",
+             "0 @F7@ FAM", "1 CHIL @I70@", "1 CHIL @I71@"]
+    assert review.close_christenings(old, ged(*lines))[0][5] == 151
+
+
+def _titled(*event_lines):
+    return ged(*FAMILY[:2], "1 FAMC @F1@", *event_lines, *FAMILY[3:])
+
+
+def test_title_year_without_ground_is_reported():
+    tree = _titled("1 BIRT", "2 DATE 12 MAY 1700", "1 DEAT", "2 DATE ABT 1760")
+    assert review.ungrounded_title_years(tree, "I1", "# Jan Faber (1700-1760)\n") == []
+    assert review.ungrounded_title_years(tree, "I1", "# Jan Faber (1700-1765)\n") == ["1765"]
+    warnings = check(tree, tree, story="# Jan Faber (1700-1765)\nTekst.").warnings
+    assert any("life story title names 1765" in w for w in warnings)
+
+
+def test_title_year_with_reservation_or_question_mark_is_fine():
+    tree = _titled("1 BIRT", "2 DATE 1700")
+    for title in ("ca. 1765", "circa 1765", "omstreeks 1765", "vóór 1765", "voor 1765", "na 1765", "ná 1765",
+                  "before 1765", "after 1765", "c. 1765", "about 1765", "1765?"):
+        assert review.ungrounded_title_years(tree, "I1", f"# Jan Faber (1700-{title})") == [], title
+    assert review.ungrounded_title_years(tree, "I1", "# Jan Faber, de ouderling van 1790") == ["1790"]
+    for title in ("(waarschijnlijk 1765-1779)", "(vermoedelijk 1765)", "(ca. 1760-1765)", "(tussen 1765 en 1770)",
+                  "(1765 of 1770)", "(1765/1770-1700)", "(leefde in 1765)", "(rond 1765)"):
+        assert review.ungrounded_title_years(tree, "I1", f"# Jan Faber {title}") == [], title
+    assert review.ungrounded_title_years(tree, "I1", "# Jan Faber (1765-ca. 1770)") == ["1765"]
+
+
+def test_title_year_checks_burial_and_baptism_and_missing_story():
+    tree = _titled("1 CHR", "2 DATE BEF 1701", "1 BURI", "2 DATE 1760")
+    assert review.ungrounded_title_years(tree, "I1", "# Jan (1701-1760)") == []
+    assert review.ungrounded_title_years(tree, "I1", "") == []
+    assert review.ungrounded_title_years(tree, "I404", "# Jan (1701)") == []

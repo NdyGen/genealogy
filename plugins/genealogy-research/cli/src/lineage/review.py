@@ -9,6 +9,7 @@ report. Whether a reading is right or a word on the certainty scale fits stays w
 from __future__ import annotations
 
 import datetime as dt
+import difflib
 import re
 import subprocess
 from dataclasses import dataclass, field
@@ -19,6 +20,7 @@ from lineage.coordinates import TABLE
 from lineage.gedcom import parse
 from lineage.i18n import t
 from lineage.queue import LEGACY_COLUMNS, LIVING_CUTOFF_YEAR, possibly_living
+from lineage.verify import _REREAD
 
 _RECORD = re.compile(r"^0 @([^@]+)@ ")
 _POINTER = re.compile(r"@([IF]\d+)@")
@@ -77,6 +79,11 @@ _UNREAD = re.compile(
 )
 _SUPERSEDED = re.compile(
     r"achterhaald|superseded|niet online|not online|niet gescand|not scanned|niet gedigitaliseerd|not digiti[sz]ed",
+    re.IGNORECASE,
+)
+_INDEX_OR_HELPER_READING = re.compile(
+    r"lezing (?:van )?(?:de |een )?hulpagent|alleen (?:de )?index|scan niet gelezen"
+    r"|helper reading|reading (?:by |of )?(?:the |a )?helper agent|index only|only the index|scan not read",
     re.IGNORECASE,
 )
 _MAX_LINE = 255
@@ -186,6 +193,121 @@ def vanished_metadata(old: str, new: str) -> list[tuple[str, str]]:
             for line in lines if line.startswith("1 _") and line not in after[xref]]
 
 
+_HTML = re.compile(r"<[^>]+>")
+_MIN_NOTE_WORDS = 8
+
+
+def _note_sentences(text: str) -> list[str]:
+    return [
+        s for line in _HTML.sub(" ", text).splitlines() for part in _SENTENCE.split(line)
+        if len(s := " ".join(part.split())) and len(s.split()) >= _MIN_NOTE_WORDS
+    ]
+
+
+def _plain(text: str) -> str:
+    return " ".join(_HTML.sub(" ", text).split()).casefold()
+
+
+def dropped_note_sentences(old: str, new: str, report: str = "") -> list[tuple[str, str]]:
+    """Sentences of a NOTE that a changed record no longer carries anywhere, in no other NOTE or PAGE of the
+    record either, and that the report does not mention: a rewritten NOTE dropped the division of 1776 and the
+    soundings of 1755-1758 without a word under Removed."""
+    before, after = records(old), records(new)
+    seen = _plain(report)
+    found = []
+    for xref, lines in before.items():
+        if xref not in after or after[xref] == lines:
+            continue
+        kept = [_plain(s) for s in _note_sentences(_joined_notes(after[xref]))]
+        every_line = _plain(_joined_notes([ln for ln in after[xref] if ln.split(" ", 2)[1:2] != ["NOTE"]])
+                            + " " + " ".join(ln.split(" ", 2)[2] for ln in after[xref] if ln.count(" ") >= 2))
+        for sentence in _note_sentences(_joined_notes(lines)):
+            plain = _plain(sentence)
+            if plain in every_line or plain in seen:
+                continue
+            if any(difflib.SequenceMatcher(None, plain, k).ratio() >= 0.6 for k in kept):
+                continue
+            found.append((xref, sentence))
+    return found
+
+
+_EXACT_DATE = re.compile(r"^(\d{1,2}) ([A-Z]{3}) (\d{4})$")
+_MONTHS = {m: i for i, m in enumerate("JAN FEB MAR APR MAY JUN JUL AUG SEP OCT NOV DEC".split(), 1)}
+_CALENDAR_ESCAPE = re.compile(r"@#D[A-Z ]+@\s*")
+_MIN_CHILD_GAP_DAYS = 270
+
+
+def _exact_date(raw: str) -> dt.date | None:
+    m = _EXACT_DATE.match(_CALENDAR_ESCAPE.sub("", raw.upper()).strip())
+    if not m or m.group(2) not in _MONTHS:
+        return None
+    try:
+        return dt.date(int(m.group(3)), _MONTHS[m.group(2)], int(m.group(1)))
+    except ValueError:
+        return None
+
+
+def _christening_date(person) -> tuple[dt.date, str] | None:
+    for tags in (("CHR", "BAPM"), ("BIRT",)):
+        for event in person.events:
+            if event.tag in tags and event.date and (day := _exact_date(event.date.raw)):
+                return day, event.date.raw
+    return None
+
+
+def close_christenings(old: str, new: str) -> list[tuple[str, str, str, str, str, int]]:
+    """(family, child, date, child, date, days) for children of a new or changed family whose exact baptism
+    (or birth) dates lie 1 to 269 days apart: a mother cannot bear two children that close, so these are two
+    mothers, a misread date or a wrongly linked child (a review missed baptisms 26-9-1723 and 9-2-1724)."""
+    before = records(old)
+    after = records(new)
+    touched = {x for x, lines in after.items() if x in before and before[x] != lines or x not in before}
+    tree = parse(new)
+    found = []
+    for fid in sorted(touched & tree.families.keys()):
+        children = [(child, c) for child in tree.children(tree.families[fid]) if (c := _christening_date(child))]
+        children.sort(key=lambda x: x[1][0])
+        for (a, (day_a, raw_a)), (b, (day_b, raw_b)) in zip(children, children[1:]):
+            gap = (day_b - day_a).days
+            if 0 < gap < _MIN_CHILD_GAP_DAYS:
+                found.append((fid, f"{a.name} ({a.id})", raw_a, f"{b.name} ({b.id})", raw_b, gap))
+    return found
+
+
+_TITLE_YEAR = re.compile(r"(?<!\d)(1\d{3}|20\d{2})(?!\d)")
+# A qualifier anywhere earlier in the parenthesis covers a whole range ("ca. 1640-1655", "tussen 1750 en 1760").
+_QUALIFIER = re.compile(
+    r"\bca\.?|\bcirca\b|\bomstreeks\b|\brond\b|\bvóór\b|\bvoor\b|\bna\b|\bná\b|\btussen\b|\buiterlijk\b"
+    r"|\bwaarschijnlijk\b|\bvermoedelijk\b|\bmogelijk\b|\bbefore\b|\bafter\b|\babout\b|\bbetween\b"
+    r"|\bc\.|\bleefde\b|\blevend\b|\bgeleefd\b|\bof\s*$",
+    re.IGNORECASE,
+)
+_GROUNDED_EVENTS = ("BIRT", "CHR", "BAPM", "DEAT", "BURI")
+
+
+def ungrounded_title_years(ged_new: str, pid: str, story: str) -> list[str]:
+    """Years in the heading of the life story that no birth, baptism, death or burial date of the person
+    carries and that the title does not mark as uncertain (four rounds put a death year in the title that
+    only stood as 'probably' in a NOTE)."""
+    person = parse(ged_new).persons.get(pid)
+    title = next((ln[2:].strip() for ln in story.splitlines() if ln.startswith("# ")), "")
+    if not person or not title:
+        return []
+    grounded = {
+        m.group(0) for event in person.events if event.tag in _GROUNDED_EVENTS and event.date
+        for m in _TITLE_YEAR.finditer(event.date.raw)
+    }
+    found = []
+    for m in _TITLE_YEAR.finditer(title):
+        before = title[: m.start()]
+        uncertain = _QUALIFIER.search(before[before.rfind("(") + 1:]) or re.match(r"[?/]|\s+of\b", title[m.end():]) or before.endswith("/")
+        if m.group(1) in grounded or uncertain:
+            continue
+        if m.group(1) not in found:
+            found.append(m.group(1))
+    return found
+
+
 def _events(lines: list[str]) -> list[tuple[str, str, str]]:
     """(tag or TYPE, DATE, PLAC) per level-1 event."""
     found, tag, date, plac = [], "", "", ""
@@ -277,7 +399,7 @@ def derived_links(old: str, new: str) -> list[tuple[str, str]]:
 
 def unsourced_links(old: str, new: str) -> list[tuple[str, str]]:
     """New FAMC links without a SOUR under the link: the record that carries the link then only stands in a
-    NOTE, and verify cannot check it (I1171001)."""
+    NOTE, and verify cannot check it."""
     before, after = records(old), records(new)
     found = []
     for xref, lines in after.items():
@@ -290,7 +412,7 @@ def unsourced_links(old: str, new: str) -> list[tuple[str, str]]:
 
 def unmarked_links(old: str, new: str) -> list[tuple[str, str]]:
     """New FAMC links whose sources are all QUAY 2: neither proven (QUAY 3) nor marked as a probable link
-    (QUAY 1 with a decision of the user). I1192001 linked a daughter so, with "QUAY 2" in the report where a
+    (QUAY 1 with a decision of the user). One round linked a daughter so, with "QUAY 2" in the report where a
     word of the scale belonged."""
     before, after = records(old), records(new)
     found = []
@@ -303,11 +425,70 @@ def unmarked_links(old: str, new: str) -> list[tuple[str, str]]:
     return found
 
 
+def _level(line: str) -> int | None:
+    head = line.split(" ", 1)[0]
+    return int(head) if head.isdigit() else None
+
+
+def _level_one_blocks(lines: list[str]) -> list[list[str]]:
+    blocks: list[list[str]] = []
+    for line in lines:
+        if _level(line) is None:
+            continue
+        if line.startswith("1 "):
+            blocks.append([])
+        if blocks:
+            blocks[-1].append(line)
+    return blocks
+
+
+def _citations(block: list[str]) -> list[tuple[str, ...]]:
+    """Every SOUR with its sub-lines, at any depth."""
+    found = []
+    for i, line in enumerate(block):
+        lvl, rest = _level(line), line.partition(" ")[2]
+        if lvl is not None and rest.startswith("SOUR "):
+            end = next((j for j in range(i + 1, len(block)) if (_level(block[j]) or 0) <= lvl), len(block))
+            found.append(tuple(block[i:end]))
+    return found
+
+
+def flag_with_date(old: str, new: str) -> list[tuple[str, str]]:
+    """New or changed events written as "1 <TAG> Y" with a DATE under them: the Y flag means "happened, date
+    unknown" and is only valid without a date."""
+    before = records(old)
+    found = []
+    for xref, lines in records(new).items():
+        old_blocks = {tuple(b) for b in _level_one_blocks(before.get(xref, []))}
+        for block in _level_one_blocks(lines):
+            flagged = block[0].endswith(" Y") and block[0].count(" ") == 2
+            if flagged and tuple(block) not in old_blocks and any(line.startswith("2 DATE ") for line in block):
+                found.append((xref, block[0].split(" ")[1]))
+    return found
+
+
+def quay3_on_unread_citation(old: str, new: str) -> list[str]:
+    """New QUAY 3 citations in an event or FAMC block (or the citation itself) that call the reading a helper
+    agent's or the index's, without the lead's reread marker: proven needs the scan read by the lead."""
+    before = records(old)
+    found = []
+    for xref, lines in records(new).items():
+        old_citations = {c for b in _level_one_blocks(before.get(xref, [])) for c in _citations(b)}
+        for block in _level_one_blocks(lines):
+            text = _joined_notes(block) + "\n" + "\n".join(block)
+            if not _INDEX_OR_HELPER_READING.search(text) or _REREAD.search(text):
+                continue
+            if any(f"{_level(c[0]) + 1} QUAY 3" in c and c not in old_citations for c in _citations(block)):
+                found.append(xref)
+                break
+    return found
+
+
 _DMY = re.compile(r"\b(\d{1,2})-(\d{1,2})-(\d{4})\b")
 
 
 def future_dates(texts: dict[str, str], today: dt.date) -> list[str]:
-    """Dates after today in new text: a reading dated tomorrow (I501817, "12-11-2026" on 11-11) is a typo
+    """Dates after today in new text: a reading dated tomorrow ("12-11" written on 11-11) is a typo
     that a reader takes for a later check."""
     found = []
     for where, text in texts.items():
@@ -478,6 +659,45 @@ def name_counted_twice(texts: dict[str, str]) -> list[str]:
     return found
 
 
+_ABSENCE = re.compile(
+    r"\bgeen (?:eigen )?(?:doop|huwelijk|huwelijksakte|begrafenis|sterfakte|overlijdensakte|ander kind|kinderen"
+    r"|akte bij|kohier|testament|rechtszaak)\b"
+    r"|\bno (?:own )?(?:baptism|marriage|burial|death record|other child|will)\b",
+    re.IGNORECASE,
+)
+_SEARCHED = re.compile(
+    r"gevonden|doorzocht|gezocht|bekeken|ingezien|\bin de index\b|found|searched|\bin the index\b", re.IGNORECASE
+)
+
+
+def absence_as_fact(texts: dict[str, str]) -> list[str]:
+    """'Not finding is no fact': two rounds wrote "no burial, no marriage" for what was only not found."""
+    found = []
+    for where, text in texts.items():
+        for sentence in (s for line in text.splitlines() for s in _SENTENCE.split(line)):
+            if (m := _ABSENCE.search(_QUOTE.sub("", sentence))) and not _SEARCHED.search(sentence):
+                found.append(t(
+                    "{where}: '{words}' reads as a fact; write what was searched and not found: {sentence}",
+                    where=where, words=m.group(0), sentence=" ".join(sentence.split())[:140],
+                ))
+    return found
+
+
+def _sentences(text: str) -> list[str]:
+    return [" ".join(s.split()) for line in text.splitlines() if line.strip() and not line.startswith(("#", "!["))
+            for s in _SENTENCE.split(line) if len(s.split()) >= 6]
+
+
+def dropped_sentences(story_old: str, story_new: str) -> list[str]:
+    """An update round only adds what the tree gained; one story lost a closing sentence and another broke
+    'two months later' by inserting a paragraph. Sentences of the old story with no close match in the new one."""
+    new = _sentences(story_new)
+    return [
+        s for s in _sentences(story_old)
+        if not any(difflib.SequenceMatcher(None, s, n).ratio() >= 0.6 for n in new)
+    ]
+
+
 def off_scale(texts: dict[str, str]) -> list[str]:
     """Certainty words that are not on the scale; reviews kept finding 'aantoonbaar' in five rounds out of six."""
     found = []
@@ -617,6 +837,17 @@ def check(
         u.warnings.append(t("{xref}: '{line}' vanished without a NOTE naming the old value", xref=x, line=line))
     for x, line in vanished_metadata(ged_old, ged_new):
         u.warnings.append(t("{xref}: program line '{line}' removed", xref=x, line=line))
+    for x, sentence in dropped_note_sentences(ged_old, ged_new, report_full or report_new)[:8]:
+        u.warnings.append(t(
+            "{xref}: NOTE sentence gone from the record and not named in the report (Removed): {sentence}",
+            xref=x, sentence=sentence[:160],
+        ))
+    for fam, a, date_a, b, date_b, days in close_christenings(ged_old, ged_new):
+        u.warnings.append(t(
+            "gap of {days} days between baptisms of {a} ({date_a}) and {b} ({date_b}) in {fam}: "
+            "two mothers, a wrong reading or a wrongly linked child?",
+            days=days, a=a, date_a=date_a, b=b, date_b=date_b, fam=fam,
+        ))
     for x, ev in old_values_elsewhere(ged_old, ged_new):
         u.warnings.append(t("{xref} still has '{event}', a value this round corrected elsewhere", xref=x, event=ev))
     for x in skipped_but_old(queue_old, queue_new, ged_new):
@@ -653,6 +884,14 @@ def check(
         ))
     for x, words in pronoun_mismatch(ged_old, ged_new):
         u.warnings.append(t("{xref}: '{words}' in a birth or baptism NOTE does not match the sex", xref=x, words=words))
+    for x, tag in flag_with_date(ged_old, ged_new):
+        u.warnings.append(t("{xref}: '1 {tag} Y' with a DATE under it: write '1 {tag}' without the Y", xref=x, tag=tag))
+    for x in quay3_on_unread_citation(ged_old, ged_new):
+        u.warnings.append(t(
+            "{xref}: QUAY 3 on a helper agent's reading or the index alone: proven needs the scan read by the lead; "
+            "read the scan, or set QUAY 2 and write 'according to the index'",
+            xref=x,
+        ))
     for line in long_lines(ged_old, ged_new):
         u.errors.append(t(
                 "GEDCOM: new line of {length} characters (max {max}, split with CONC): {line}",
@@ -663,13 +902,23 @@ def check(
     new_notes = "\n".join(r.split(" ", 2)[2] for r in new_lines(ged_old, ged_new)
                           if r.split(" ", 2)[1:2] in (["NOTE"], ["CONC"], ["CONT"]) and r.count(" ") >= 2)
     u.warnings.extend(off_scale({t("report"): report_new, "GEDCOM": new_notes}))
+    u.warnings.extend(absence_as_fact({t("report"): report_new, t("life story"): story}))
     u.warnings.extend(proven_on_derived({t("report"): report_new, "GEDCOM": new_notes, t("life story"): story}))
     u.warnings.extend(name_counted_twice({t("report"): report_new, "GEDCOM": new_notes}))
     u.warnings.extend(future_dates(
         {t("report"): report_new, "GEDCOM": new_notes, t("open questions"): questions_new}, today or dt.date.today(),
     ))
     u.warnings.extend(_story_warnings(report_full, story))
+    u.warnings.extend(_title_warnings(ged_new, pid, story))
     return u
+
+
+def _title_warnings(ged_new: str, pid: str, story: str) -> list[str]:
+    return [
+        t("life story title names {year} without a birth, baptism, death or burial date with that year in the tree",
+          year=year)
+        for year in ungrounded_title_years(ged_new, pid, story)
+    ]
 
 
 def _story_warnings(report: str, story: str) -> list[str]:
@@ -718,7 +967,13 @@ def review_branch(root: Path, pid: str) -> Outcome:
     story = _show(root, branch, f"{project.rel('life_stories').as_posix()}/{pid}.md")
     out = wt / project.rel("output")
     if _marker(out, "update", "stale", "bijwerk"):
-        return Outcome(warnings=_story_warnings(report_full, story))
+        old_story = _show(root, base, f"{project.rel('life_stories').as_posix()}/{pid}.md")
+        tree_new = _show(root, branch, project.rel("gedcom").as_posix())
+        return Outcome(warnings=_story_warnings(report_full, story) + _title_warnings(tree_new, pid, story) + [
+            t("life story: sentence dropped by the update round (only add what the tree gained): {sentence}",
+              sentence=z[:160])
+            for z in dropped_sentences(old_story, story)
+        ])
     account_file = out / "account"
     account = account_file.read_text().strip() if account_file.exists() else ""
     since = dt.datetime.fromtimestamp(int(_git(root, "log", "-1", "--format=%ct", base).strip()))
