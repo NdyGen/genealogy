@@ -47,6 +47,8 @@ _MERGED = re.compile(r"^Deep research (\S+) (?:merged|samengevoegd):")
 _WORD = re.compile(r"[A-Za-z0-9_]+")
 _MERGE_CALL = re.compile(r"(?:round merge|merge\.sh|samenvoegen(?:\.sh)?)\s+@?(\w+)")
 _HELPER_PROMPT = re.compile(r"^(?:Read the brief|Lees de opdracht)")
+# What `round start` gives a leader; another session opened in the worktree by hand is not the round's leader.
+_LEADER_PROMPT = re.compile(r"deep-research|life story|levensverhaal", re.I)
 # Countries whose places are written "place, province, country"; elsewhere the country is the region.
 _BY_PROVINCE = {"nederland", "netherlands", "belgië", "belgie", "belgium"}
 
@@ -183,6 +185,8 @@ def leader_session(worktree: Path, accounts: dict[str, Path]) -> tuple[str, str]
     for account, config_dir in accounts.items():
         for session in transcripts.sessions(transcripts.project_dir(config_dir, worktree), config_dir):
             if session.subagent or _role(session) != "leader" or not session.times:
+                continue
+            if not _LEADER_PROMPT.search(session.first_prompt):
                 continue
             if best is None or session.times[-1] > best[0]:
                 best = (session.times[-1], session.path.stem, account)
