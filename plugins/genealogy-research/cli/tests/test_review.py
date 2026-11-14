@@ -563,3 +563,17 @@ def test_absence_written_as_fact_does_not_occur():
     found = review.absence_as_fact({"report": "Embrecht komt niet voor in de akte van 1639, die onzeker gelezen is. "
                                               "Een tweede akte kan niet bestaan, want het protocol heeft een gat."})
     assert len(found) == 2
+    return found
+
+
+def test_identification_without_grade():
+    texts = {
+        "GEDCOM": "Lezing van enkele woorden onzeker. Identificatie: dezelfde medekoper en dezelfde verdeling. "
+        "Identificatie (bewezen): de vaste medekoper Peeter Geerit Anthonis.",
+        "life story": "Dat het onze Jan is, volgt uit dezelfde medekoper. "
+        "Dat het onze Jan is, is waarschijnlijk: de ligging past.",
+    }
+    found = review.ungraded_identification(texts)
+    assert len(found) == 2
+    assert "Identificatie: dezelfde medekoper" in found[0]
+    assert "Dat het onze Jan is, volgt uit" in found[1]

@@ -766,6 +766,28 @@ def heading_firmer_than_text(texts: dict[str, str]) -> list[str]:
     return found
 
 
+_IDENTIFICATION = re.compile(
+    r"\bIdentificat(?:ie|ion)(?: \([^)]*\))?:|\b[Dd]at het (?:onze|dezelfde|zijn|haar) \w+ is, volgt uit\b"
+    r"|\b[Tt]hat (?:this|it) is (?:our|the same) \w+ follows from\b"
+)
+_ANY_GRADE = re.compile(r"\b(?:bewezen|proven|" + "|".join(_GRADES) + r")\b", re.IGNORECASE)
+
+
+def ungraded_identification(texts: dict[str, str]) -> list[str]:
+    """An identification argued without a word of the scale ("Identificatie: same co-buyer ...", "Dat het onze
+    Jan is, volgt uit ..."): the reader cannot tell proven from probable. Two rounds in a row (I1265002, I500001)."""
+    found = []
+    for where, text in texts.items():
+        for sentence in (s for line in text.splitlines() for s in _SENTENCE.split(line)):
+            m = _IDENTIFICATION.search(sentence)
+            if m and not _ANY_GRADE.search(_NOT_A_GRADE.sub(" ", sentence)):
+                found.append(t(
+                    "{where}: identification without a word of the certainty scale: {sentence}",
+                    where=where, sentence=" ".join(sentence[m.start():].split())[:140],
+                ))
+    return found
+
+
 def _sentences(text: str) -> list[str]:
     return [" ".join(s.split()) for line in text.splitlines() if line.strip() and not line.startswith(("#", "!["))
             for s in _SENTENCE.split(line) if len(s.split()) >= 6]
@@ -1000,6 +1022,13 @@ def check(
     u.warnings.extend(heading_firmer_than_text({t("report"): report_new, t("life story"): story}))
     u.warnings.extend(proven_on_derived({t("report"): report_new, "GEDCOM": new_notes, t("life story"): story}))
     u.warnings.extend(name_counted_twice({t("report"): report_new, "GEDCOM": new_notes}))
+    joined_notes = "".join(
+        (" " if r.split(" ", 2)[1] != "CONC" else "") + r.split(" ", 2)[2] for r in new_lines(ged_old, ged_new)
+        if r.split(" ", 2)[1:2] in (["NOTE"], ["CONC"], ["CONT"]) and r.count(" ") >= 2
+    )
+    u.warnings.extend(ungraded_identification(
+        {t("report"): report_new, "GEDCOM": joined_notes, t("life story"): story}
+    ))
     u.warnings.extend(future_dates(
         {t("report"): report_new, "GEDCOM": new_notes, t("open questions"): questions_new}, today or dt.date.today(),
     ))
