@@ -36,11 +36,14 @@ load_runner
 PROMPT="Message from the coordinator about round $ID: $TEXT
 Do this in this worktree, commit, run 'lineage round finish' again and end with DONE $ID."
 
-rm -f "$OUTDIR/DONE" "$OUTDIR/caller-told"
+# DONE goes only once the message reaches a leader: a refused tell must leave a finished round finished.
+[ -f "$OUTDIR/DONE" ] && mv -f "$OUTDIR/DONE" "$OUTDIR/DONE.telling"
 if runner_prompt "$NAME" "$PROMPT" 2>/dev/null; then
+  rm -f "$OUTDIR/DONE.telling" "$OUTDIR/caller-told"
   echo "$ID: told the running leader ($NAME)"
   exit 0
 fi
+[ -f "$OUTDIR/DONE.telling" ] && mv -f "$OUTDIR/DONE.telling" "$OUTDIR/DONE"
 
 found=$(lineage leader-session "$ID") || exit 1
 SESSION=${found%%$'\t'*}
@@ -60,5 +63,6 @@ if account_on_limit "$ACCOUNT"; then
 fi
 MODEL=$(cat "$OUTDIR/model" 2>/dev/null || echo opus)
 PERSON=$(cd "$WT" && lineage person "$ID" | sed -n 1p | sed -E 's/ \[[A-Za-z0-9]+\]$//')
+rm -f "$OUTDIR/DONE" "$OUTDIR/caller-told"
 RESUME_SESSION=$SESSION runner_start_leader "$WT" "$NAME" "${PERSON:-$ID}" "$MODEL" "$ACCOUNT" "$PROMPT"
 echo "$ID: resumed the leader's session $SESSION on account $ACCOUNT ($RUNNER runner${RUNNER_WHERE:+, $RUNNER_WHERE})"
