@@ -327,6 +327,13 @@ def test_an_account_without_config_dir_is_home_claude_not_the_callers_config_dir
     assert roundstats.leader_session(worktree, costs.account_dirs()) == ("lead", "personal")
 
 
+def test_a_session_opened_by_hand_in_the_worktree_is_not_the_leader(repo, tmp_path):
+    folder = transcripts.project_dir(tmp_path / "cfg", repo / ".worktrees" / "dr-I1")
+    write_session(folder / "lead.jsonl", user(1, "Use the deep-research skill for person I1."), assistant(5, "a"))
+    write_session(folder / "user.jsonl", user(10, "how far back does our tree go?"), assistant(20, "b"))
+    assert roundstats.leader_session(repo / ".worktrees" / "dr-I1", costs.account_dirs()) == ("lead", "personal")
+
+
 def test_older_command_and_prompt_names_are_recognised(tmp_path):
     path = write_session(tmp_path / "s.jsonl", user(0, "Lees de opdracht in x.opdracht.md"),
                          assistant(1, "a", blocks=[bash("uv run ndygen review I5")]),
