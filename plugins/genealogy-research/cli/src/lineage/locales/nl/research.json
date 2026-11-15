@@ -105,5 +105,7 @@
   "{xref}: NOTE sentence gone from the record and not named in the report (Removed): {sentence}": "{xref}: NOTE-zin weggevallen uit het record en niet genoemd in het rapport (Verwijderd): {sentence}",
   "life story: sentence dropped by the update round (only add what the tree gained): {sentence}": "levensverhaal: zin weggevallen in de bijwerkronde (alleen toevoegen wat de stamboom erbij kreeg): {sentence}",
   "gap of {days} days between baptisms of {a} ({date_a}) and {b} ({date_b}) in {fam}: two mothers, a wrong reading or a wrongly linked child?": "tussenpoos van {days} dagen tussen dopen van {a} ({date_a}) en {b} ({date_b}) in {fam}: twee moeders, een verkeerde lezing of een verkeerd gekoppeld kind?",
-  "life story title names {year} without a birth, baptism, death or burial date with that year in the tree": "titel van het levensverhaal noemt {year} zonder geboorte-, doop-, overlijdens- of begraafdatum met dat jaar in de boom"
+  "life story title names {year} without a birth, baptism, death or burial date with that year in the tree": "titel van het levensverhaal noemt {year} zonder geboorte-, doop-, overlijdens- of begraafdatum met dat jaar in de boom",
+  "report names case A, but no new line in the open questions asks the user to decide: {sentence}": "rapport noemt geval A, maar geen nieuwe regel in de open vragen legt het besluit aan de gebruiker voor: {sentence}",
+  "{where}: heading states '{kin}' as a fact, the text below grades it: {heading}": "{where}: kop noemt '{kin}' als feit, de tekst eronder geeft er een schaalwoord bij: {heading}"
 }

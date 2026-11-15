@@ -662,7 +662,9 @@ def name_counted_twice(texts: dict[str, str]) -> list[str]:
 _ABSENCE = re.compile(
     r"\bgeen (?:eigen )?(?:doop|huwelijk|huwelijksakte|begrafenis|sterfakte|overlijdensakte|ander kind|kinderen"
     r"|akte bij|kohier|testament|rechtszaak)\b"
-    r"|\bno (?:own )?(?:baptism|marriage|burial|death record|other child|will)\b",
+    r"|\bkomt (?:daar |er |hij |zij )?(?:niet|nergens) voor\b|\bkan niet bestaan\b"
+    r"|\bno (?:own )?(?:baptism|marriage|burial|death record|other child|will)\b|\bcannot exist\b"
+    r"|\bdoes not (?:appear|occur)\b",
     re.IGNORECASE,
 )
 _SEARCHED = re.compile(
@@ -680,6 +682,56 @@ def absence_as_fact(texts: dict[str, str]) -> list[str]:
                     "{where}: '{words}' reads as a fact; write what was searched and not found: {sentence}",
                     where=where, words=m.group(0), sentence=" ".join(sentence.split())[:140],
                 ))
+    return found
+
+
+_CASE_A = re.compile(r"\b(?:geval|case) A\b")
+_NOT_CASE_A = re.compile(r"\b(?:geen|niet|not|no) (?:een )?(?:geval|case) A\b", re.IGNORECASE)
+_DECIDED = re.compile(r"\bbesl(?:uit|ist|oten)\b|\bdecid(?:ed|es)\b|\bdecision\b", re.IGNORECASE)
+
+
+def case_a_without_question(report_new: str, questions_new: str) -> list[str]:
+    """A probable link (case A) is the user's decision; three rounds named it in the report without a question
+    for it in the open questions file, so the decision never reached the user."""
+    if _CASE_A.search(questions_new):
+        return []
+    return [
+        " ".join(sentence.split())[:160]
+        for sentence in (s for line in report_new.splitlines() for s in _SENTENCE.split(line))
+        if _CASE_A.search(sentence) and not _NOT_CASE_A.search(sentence) and not _DECIDED.search(sentence)
+    ][:1]
+
+
+_KIN = (
+    r"broer|zus|zuster|dochter|zoon|vader|moeder|ouders|grootvader|grootmoeder|oom|tante|schoonzoon|schoondochter"
+    r"|brother|sister|daughter|son|father|mother|parents|grandfather|grandmother|uncle|aunt|son-in-law"
+)
+_KIN_WORD = re.compile(rf"\b({_KIN})s?\b", re.IGNORECASE)
+_GRADE_STEM = re.compile(r"vermoedelijk|waarschijnlijk|mogelijk|presum|probab|possib", re.IGNORECASE)
+_OPEN_HEADING = re.compile(r"\?|[\"“„]|\bzonder\b|\bwithout\b|ouders,? partners|parents,? partners", re.IGNORECASE)
+_GRADED_KIN = re.compile(rf"\b(?:{'|'.join(_GRADES)})\s+(?:\w+\s+){{0,3}}?({_KIN})s?\b", re.IGNORECASE)
+
+
+def heading_firmer_than_text(texts: dict[str, str]) -> list[str]:
+    """A heading "a widow and her brother marry ..." over a text that says "presumably her brother": the
+    reader takes the heading as the finding. A kinship word in a heading without a grade, graded below it.
+    A question, a quoted word or the fixed section on parents and partners is no claim."""
+    found = []
+    for where, text in texts.items():
+        heading, body = "", []
+        for line in [*text.splitlines(), "# "]:
+            if not line.startswith("#"):
+                body.append(line)
+                continue
+            if heading and not _GRADE_STEM.search(heading) and not _OPEN_HEADING.search(heading):
+                graded = {m.group(1).lower() for m in _GRADED_KIN.finditer("\n".join(body))}
+                kin = sorted({m.group(1).lower() for m in _KIN_WORD.finditer(heading)} & graded)
+                if kin:
+                    found.append(t(
+                        "{where}: heading states '{kin}' as a fact, the text below grades it: {heading}",
+                        where=where, kin=", ".join(kin), heading=heading.lstrip("# ").strip()[:120],
+                    ))
+            heading, body = line, []
     return found
 
 
@@ -903,6 +955,12 @@ def check(
                           if r.split(" ", 2)[1:2] in (["NOTE"], ["CONC"], ["CONT"]) and r.count(" ") >= 2)
     u.warnings.extend(off_scale({t("report"): report_new, "GEDCOM": new_notes}))
     u.warnings.extend(absence_as_fact({t("report"): report_new, t("life story"): story}))
+    for sentence in case_a_without_question(report_new, questions_new):
+        u.warnings.append(t(
+            "report names case A, but no new line in the open questions asks the user to decide: {sentence}",
+            sentence=sentence,
+        ))
+    u.warnings.extend(heading_firmer_than_text({t("report"): report_new, t("life story"): story}))
     u.warnings.extend(proven_on_derived({t("report"): report_new, "GEDCOM": new_notes, t("life story"): story}))
     u.warnings.extend(name_counted_twice({t("report"): report_new, "GEDCOM": new_notes}))
     u.warnings.extend(future_dates(
