@@ -517,3 +517,33 @@ def test_title_year_checks_burial_and_baptism_and_missing_story():
     assert review.ungrounded_title_years(tree, "I1", "# Jan (1701-1760)") == []
     assert review.ungrounded_title_years(tree, "I1", "") == []
     assert review.ungrounded_title_years(tree, "I404", "# Jan (1701)") == []
+
+
+def test_case_a_without_question():
+    report = (
+        "Haar ouders zijn waarschijnlijk Nicolaas Peters en Jenneken van Poppel; dat is geval A, niet gekoppeld.\n"
+        "Geen geval A voor de broer: de akte noemt hem.\n"
+    )
+    found = review.case_a_without_question(report, "- [ ] I5 doop gezocht in Hilvarenbeek\n")
+    assert found == ["Haar ouders zijn waarschijnlijk Nicolaas Peters en Jenneken van Poppel; dat is geval A, niet gekoppeld."]
+    assert review.case_a_without_question(report, "- [ ] I5 besluitvraag geval A: ouders koppelen?\n") == []
+    assert review.case_a_without_question("Geval A, gekoppeld na besluit Andy 13-11-2026.", "") == []
+
+
+def test_heading_firmer_than_text():
+    story = (
+        "# Peternel\n\n"
+        "## Oktober 1744: een weduwe en haar broer trouwen een vader en zijn dochter\n\n"
+        "Paulus is vermoedelijk haar broer, en Maria vermoedelijk een dochter van Wouter.\n\n"
+        "## Een vermoedelijke broer\n\nPaulus is vermoedelijk haar broer.\n\n"
+        "## Haar zoon Jacobus\n\nJacobus werd in 1734 gedoopt; zijn vader is bewezen.\n"
+    )
+    found = review.heading_firmer_than_text({"levensverhaal": story})
+    assert len(found) == 1
+    assert "'broer, dochter'" in found[0]
+
+
+def test_absence_written_as_fact_does_not_occur():
+    found = review.absence_as_fact({"report": "Embrecht komt niet voor in de akte van 1639, die onzeker gelezen is. "
+                                              "Een tweede akte kan niet bestaan, want het protocol heeft een gat."})
+    assert len(found) == 2
