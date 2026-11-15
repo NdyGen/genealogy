@@ -686,7 +686,9 @@ def absence_as_fact(texts: dict[str, str]) -> list[str]:
 
 
 _CASE_A = re.compile(r"\b(?:geval|case) A\b")
-_NOT_CASE_A = re.compile(r"\b(?:geen|niet|not|no) (?:een )?(?:geval|case) A\b", re.IGNORECASE)
+_NOT_CASE_A = re.compile(
+    r"\b(?:geen|niet|not|no) (?:een )?(?:geval|case) A\b|\b(?:geval|case) B\b|~~", re.IGNORECASE
+)
 _DECIDED = re.compile(r"\bbesl(?:uit|ist|oten)\b|\bdecid(?:ed|es)\b|\bdecision\b", re.IGNORECASE)
 
 

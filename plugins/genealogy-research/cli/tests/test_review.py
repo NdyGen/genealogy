@@ -528,6 +528,8 @@ def test_case_a_without_question():
     assert found == ["Haar ouders zijn waarschijnlijk Nicolaas Peters en Jenneken van Poppel; dat is geval A, niet gekoppeld."]
     assert review.case_a_without_question(report, "- [ ] I5 besluitvraag geval A: ouders koppelen?\n") == []
     assert review.case_a_without_question("Geval A, gekoppeld na besluit Andy 13-11-2026.", "") == []
+    rejected = "Niet gekoppeld (geval B: geen akte noemt hem hun vader, dus geval A valt af).\n- ~~Geval A~~ achterhaald.\n"
+    assert review.case_a_without_question(rejected, "") == []
 
 
 def test_heading_firmer_than_text():
