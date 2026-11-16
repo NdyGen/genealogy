@@ -484,6 +484,35 @@ def quay3_on_unread_citation(old: str, new: str) -> list[str]:
     return found
 
 
+_OWN_READING = re.compile(
+    r"nagelezen door (?:de )?leider|zelf (?:na)?gelezen|(?:re)?read by the lead", re.IGNORECASE
+)
+
+
+def _text_values(block: list[str]) -> str:
+    out = []
+    for line in block:
+        _, _, rest = line.partition(" ")
+        tag, _, value = rest.partition(" ")
+        out.append(value if tag == "CONC" else "\n" + value)
+    return "".join(out)
+
+
+def unread_proven_links(old: str, new: str) -> list[tuple[str, str]]:
+    """New FAMC links with a QUAY 3 citation while no citation under the link marks a reading by the leader
+    himself ("nagelezen door leider"). I1218001, I1224001 and I1221009 linked children as proven on an index
+    citation or a helper agent's reading; an index or a helper's reading is never the record of proven."""
+    before, after = records(old), records(new)
+    found = []
+    for xref, lines in after.items():
+        old_blocks = _famc_blocks(before.get(xref, []))
+        for fam, block in _famc_blocks(lines).items():
+            if (fam not in old_blocks and "3 QUAY 3" in block
+                    and not _OWN_READING.search(_text_values(block))):
+                found.append((xref, fam))
+    return found
+
+
 _DMY = re.compile(r"\b(\d{1,2})-(\d{1,2})-(\d{4})\b")
 
 
@@ -686,7 +715,9 @@ def absence_as_fact(texts: dict[str, str]) -> list[str]:
 
 
 _CASE_A = re.compile(r"\b(?:geval|case) A\b")
-_NOT_CASE_A = re.compile(r"\b(?:geen|niet|not|no) (?:een )?(?:geval|case) A\b", re.IGNORECASE)
+_NOT_CASE_A = re.compile(
+    r"\b(?:geen|niet|not|no) (?:een )?(?:geval|case) A\b|\b(?:geval|case) B\b|~~", re.IGNORECASE
+)
 _DECIDED = re.compile(r"\bbesl(?:uit|ist|oten)\b|\bdecid(?:ed|es)\b|\bdecision\b", re.IGNORECASE)
 
 
@@ -732,6 +763,28 @@ def heading_firmer_than_text(texts: dict[str, str]) -> list[str]:
                         where=where, kin=", ".join(kin), heading=heading.lstrip("# ").strip()[:120],
                     ))
             heading, body = line, []
+    return found
+
+
+_IDENTIFICATION = re.compile(
+    r"\bIdentificat(?:ie|ion)(?: \([^)]*\))?:|\b[Dd]at het (?:onze|dezelfde|zijn|haar) \w+ is, volgt uit\b"
+    r"|\b[Tt]hat (?:this|it) is (?:our|the same) \w+ follows from\b"
+)
+_ANY_GRADE = re.compile(r"\b(?:bewezen|proven|" + "|".join(_GRADES) + r")\b", re.IGNORECASE)
+
+
+def ungraded_identification(texts: dict[str, str]) -> list[str]:
+    """An identification argued without a word of the scale ("Identificatie: same co-buyer ...", "Dat het onze
+    Jan is, volgt uit ..."): the reader cannot tell proven from probable. Two rounds in a row (I1265002, I500001)."""
+    found = []
+    for where, text in texts.items():
+        for sentence in (s for line in text.splitlines() for s in _SENTENCE.split(line)):
+            m = _IDENTIFICATION.search(sentence)
+            if m and not _ANY_GRADE.search(_NOT_A_GRADE.sub(" ", sentence)):
+                found.append(t(
+                    "{where}: identification without a word of the certainty scale: {sentence}",
+                    where=where, sentence=" ".join(sentence[m.start():].split())[:140],
+                ))
     return found
 
 
@@ -934,6 +987,12 @@ def check(
             "(case A: QUAY 1 and a decision of the user)?",
             xref=x, fam=fam,
         ))
+    for x, fam in unread_proven_links(ged_old, ged_new):
+        u.warnings.append(t(
+            "{xref}: new FAMC @{fam}@ with a QUAY 3 source, but no citation marks a reading by the leader "
+            "himself (an index or a helper agent's reading is not proven)",
+            xref=x, fam=fam,
+        ))
     for x, words in pronoun_mismatch(ged_old, ged_new):
         u.warnings.append(t("{xref}: '{words}' in a birth or baptism NOTE does not match the sex", xref=x, words=words))
     for x, tag in flag_with_date(ged_old, ged_new):
@@ -963,6 +1022,13 @@ def check(
     u.warnings.extend(heading_firmer_than_text({t("report"): report_new, t("life story"): story}))
     u.warnings.extend(proven_on_derived({t("report"): report_new, "GEDCOM": new_notes, t("life story"): story}))
     u.warnings.extend(name_counted_twice({t("report"): report_new, "GEDCOM": new_notes}))
+    joined_notes = "".join(
+        (" " if r.split(" ", 2)[1] != "CONC" else "") + r.split(" ", 2)[2] for r in new_lines(ged_old, ged_new)
+        if r.split(" ", 2)[1:2] in (["NOTE"], ["CONC"], ["CONT"]) and r.count(" ") >= 2
+    )
+    u.warnings.extend(ungraded_identification(
+        {t("report"): report_new, "GEDCOM": joined_notes, t("life story"): story}
+    ))
     u.warnings.extend(future_dates(
         {t("report"): report_new, "GEDCOM": new_notes, t("open questions"): questions_new}, today or dt.date.today(),
     ))

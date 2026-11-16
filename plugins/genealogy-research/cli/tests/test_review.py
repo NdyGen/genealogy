@@ -283,6 +283,20 @@ def test_place_or_patronymic_as_second_feature_is_reported():
     assert review.name_counted_twice({"report": quiet}) == []
 
 
+def test_new_link_on_quay_3_without_own_reading():
+    old = ged(*FAMILY[:2], *FAMILY[3:])
+    def linked(*cite):
+        return ged(*FAMILY[:2], "1 FAMC @F1@", "2 SOUR @S1@", "3 QUAY 3", *cite, *FAMILY[3:])
+    index = linked("3 PAGE Index, no 12")
+    assert review.unread_proven_links(old, index) == [("I1", "F1")]
+    assert review.unread_proven_links(old, linked("3 PAGE Akte 12, nagelezen door leider")) == []
+    assert review.unread_proven_links(old, linked("3 NOTE Zelf gelezen op de scan.")) == []
+    assert review.unread_proven_links(old, linked("3 NOTE Reread by the\n4 CONC  lead on the scan.")) == []
+    assert review.unread_proven_links(old, linked("3 PAGE Akte 12, gelezen door hulpagent")) == [("I1", "F1")]
+    assert review.unread_proven_links(index, index) == []
+    assert any("QUAY 3" in w for w in check(old, index).warnings)
+
+
 def test_pronoun_mismatch_in_own_birth_note():
     old = ged("0 @I1@ INDI\n1 SEX M")
     new = ged(
@@ -528,6 +542,8 @@ def test_case_a_without_question():
     assert found == ["Haar ouders zijn waarschijnlijk Nicolaas Peters en Jenneken van Poppel; dat is geval A, niet gekoppeld."]
     assert review.case_a_without_question(report, "- [ ] I5 besluitvraag geval A: ouders koppelen?\n") == []
     assert review.case_a_without_question("Geval A, gekoppeld na besluit Andy 13-11-2026.", "") == []
+    rejected = "Niet gekoppeld (geval B: geen akte noemt hem hun vader, dus geval A valt af).\n- ~~Geval A~~ achterhaald.\n"
+    assert review.case_a_without_question(rejected, "") == []
 
 
 def test_heading_firmer_than_text():
@@ -547,3 +563,17 @@ def test_absence_written_as_fact_does_not_occur():
     found = review.absence_as_fact({"report": "Embrecht komt niet voor in de akte van 1639, die onzeker gelezen is. "
                                               "Een tweede akte kan niet bestaan, want het protocol heeft een gat."})
     assert len(found) == 2
+    return found
+
+
+def test_identification_without_grade():
+    texts = {
+        "GEDCOM": "Lezing van enkele woorden onzeker. Identificatie: dezelfde medekoper en dezelfde verdeling. "
+        "Identificatie (bewezen): de vaste medekoper Peeter Geerit Anthonis.",
+        "life story": "Dat het onze Jan is, volgt uit dezelfde medekoper. "
+        "Dat het onze Jan is, is waarschijnlijk: de ligging past.",
+    }
+    found = review.ungraded_identification(texts)
+    assert len(found) == 2
+    assert "Identificatie: dezelfde medekoper" in found[0]
+    assert "Dat het onze Jan is, volgt uit" in found[1]
